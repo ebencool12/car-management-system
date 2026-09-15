@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState } from 'react';
@@ -11,6 +12,23 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Mouse position tracking for faint army green glowing ambient halo
+  const [mousePos, setMousePos] = useState({ x: 600, y: 350 });
+
+  // Custom logo from localStorage
+  const [customLogo] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('byt-custom-logo');
+      } catch {}
+    }
+    return null;
+  });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    setMousePos({ x: e.clientX, y: e.clientY });
+  };
 
   const selectRole = (newRole: 'admin' | 'driver') => {
     setRole(newRole);
@@ -47,10 +65,60 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-card">
+    <div
+      className="login-page"
+      onMouseMove={handleMouseMove}
+      style={{
+        position: 'relative',
+        minHeight: '100vh',
+        overflow: 'hidden'
+      }}
+    >
+      {/* WIDE GLOWING FAINT ARMY GREEN MOUSE-FOLLOWING HALO */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 0,
+          background: `radial-gradient(850px circle at ${mousePos.x}px ${mousePos.y}px, rgba(75, 95, 38, 0.32) 0%, rgba(65, 84, 30, 0.18) 35%, rgba(45, 60, 20, 0.08) 60%, transparent 80%)`,
+          transition: 'background 0.05s ease-out'
+        }}
+      />
+
+      {/* Floating secondary ambient particles */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 0,
+          background: `radial-gradient(1100px circle at ${mousePos.x * 0.9}px ${mousePos.y * 0.9}px, rgba(54, 75, 25, 0.15) 0%, transparent 70%)`
+        }}
+      />
+
+      <div className="login-card" style={{ position: 'relative', zIndex: 1 }}>
         <div className="login-logo">
-          <div className="logo-icon">BYT</div>
+          {customLogo ? (
+            customLogo.startsWith('data:') || customLogo.startsWith('http') ? (
+              <img
+                src={customLogo}
+                alt="BYT Brand Logo"
+                style={{
+                  width: 72,
+                  height: 72,
+                  objectFit: 'contain',
+                  margin: '0 auto var(--space-md)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5), 0 0 15px rgba(212, 168, 67, 0.4)'
+                }}
+              />
+            ) : (
+              <div className="logo-icon">{customLogo}</div>
+            )
+          ) : (
+            <div className="logo-icon">BYT</div>
+          )}
           <h1>BYT Fleet Management</h1>
           <p className="motto">Your Fleet. Your Control. Your Trust.</p>
         </div>

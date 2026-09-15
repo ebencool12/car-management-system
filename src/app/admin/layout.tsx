@@ -1,7 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useState } from 'react';
 
 const navItems = [
@@ -19,22 +20,145 @@ const navItems = [
   { label: 'Financials', href: '/admin/financials', icon: '📈' },
 ];
 
+interface NotificationItem {
+  id: string;
+  title: string;
+  desc: string;
+  time: string;
+  type: 'REPORT' | 'MESSAGE' | 'SALES' | 'APP';
+  unread: boolean;
+  link: string;
+}
+
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
 
-  const notifications = [
-    { id: 'n1', title: '🚨 Emergency Report', desc: 'Brake pads worn on Kia Rio (GR-3456-20)', time: '10m ago', unread: true },
-    { id: 'n2', title: '💰 Weekly Sales Submitted', desc: 'Kwame Asante submitted GHS 520 via MTN MoMo', time: '45m ago', unread: true },
-    { id: 'n3', title: '📋 New Driver Application', desc: 'Emmanuel Tetteh applied for driver onboarding', time: '2h ago', unread: false },
-  ];
+  // Logo Customization State
+  const [showLogoModal, setShowLogoModal] = useState(false);
+  const [customLogo, setCustomLogo] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('byt-custom-logo');
+      } catch {}
+    }
+    return null;
+  });
+  const [logoInputUrl, setLogoInputUrl] = useState('');
+  const [logoText, setLogoText] = useState('BYT');
+
+  // Notifications State & Live Toast
+  const [notifications, setNotifications] = useState<NotificationItem[]>([
+    {
+      id: 'n1',
+      title: '🚨 Emergency Vehicle Report',
+      desc: 'Kwame Asante reported low tire pressure on Toyota Corolla (GR-1234-22)',
+      time: 'Just now',
+      type: 'REPORT',
+      unread: true,
+      link: '/admin/reports'
+    },
+    {
+      id: 'n2',
+      title: '💬 Driver Message',
+      desc: 'Ama Mensah: "Good morning admin, heading to Kokomlemle for morning shift."',
+      time: '12m ago',
+      type: 'MESSAGE',
+      unread: true,
+      link: '/admin/drivers'
+    },
+    {
+      id: 'n3',
+      title: '💰 Weekly Sales Submitted',
+      desc: 'Kwame Asante submitted GHS 520.00 via MTN MoMo',
+      time: '45m ago',
+      type: 'SALES',
+      unread: false,
+      link: '/admin/sales'
+    },
+  ]);
+
+  const [activeToast, setActiveToast] = useState<NotificationItem | null>(null);
 
   const toggleSidebar = () => {
     setSidebarOpen(prev => !prev);
   };
+
+  const handleSignOut = () => {
+    try {
+      localStorage.removeItem('byt-role');
+      localStorage.removeItem('byt-user');
+    } catch {}
+    router.push('/');
+  };
+
+  const handleSaveLogo = (logoValue: string) => {
+    setCustomLogo(logoValue);
+    try {
+      localStorage.setItem('byt-custom-logo', logoValue);
+    } catch {}
+    setShowLogoModal(false);
+  };
+
+  const handleResetLogo = () => {
+    setCustomLogo(null);
+    try {
+      localStorage.removeItem('byt-custom-logo');
+    } catch {}
+    setShowLogoModal(false);
+  };
+
+  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        handleSaveLogo(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // Simulate incoming driver report or message
+  const triggerSimulatedDriverAlert = () => {
+    const isReport = Math.random() > 0.5;
+    const newNotif: NotificationItem = isReport
+      ? {
+          id: `n-${Date.now()}`,
+          title: '🚨 New Driver Incident Report',
+          desc: 'Kofi Boateng reported: "AC stopped cooling on Hyundai Accent (GW-9012-23)"',
+          time: 'Just now',
+          type: 'REPORT',
+          unread: true,
+          link: '/admin/reports'
+        }
+      : {
+          id: `n-${Date.now()}`,
+          title: '💬 New Message from Driver',
+          desc: 'Yaa Serwaa: "Completed afternoon shift, checking in at station."',
+          time: 'Just now',
+          type: 'MESSAGE',
+          unread: true,
+          link: '/admin/drivers'
+        };
+
+    setNotifications(prev => [newNotif, ...prev]);
+    setActiveToast(newNotif);
+
+    // Auto dismiss toast after 6s
+    setTimeout(() => {
+      setActiveToast(current => current?.id === newNotif.id ? null : current);
+    }, 6000);
+  };
+
+  const unreadCount = notifications.filter(n => n.unread).length;
 
   const filteredNav = quickSearch.trim()
     ? navItems.filter((item): item is { label: string; href: string; icon: string; badge?: number } =>
@@ -44,6 +168,55 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className={`admin-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+      {/* FLOATING LIVE TOAST NOTIFICATION FOR DRIVER MESSAGES/REPORTS */}
+      {activeToast && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 72,
+            right: 24,
+            zIndex: 9999,
+            background: 'rgba(10, 22, 40, 0.95)',
+            backdropFilter: 'blur(20px)',
+            border: activeToast.type === 'REPORT' ? '1px solid #ef4444' : '1px solid var(--byt-gold)',
+            boxShadow: '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(212, 168, 67, 0.2)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--space-md)',
+            maxWidth: 360,
+            animation: 'fadeInUp 0.3s ease-out',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, fontSize: '0.85rem', color: activeToast.type === 'REPORT' ? '#ef4444' : 'var(--byt-gold)' }}>
+              {activeToast.title}
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveToast(null)}
+              style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}
+            >
+              ✕
+            </button>
+          </div>
+          <p style={{ fontSize: '0.8rem', color: 'var(--color-text)', lineHeight: 1.4 }}>
+            {activeToast.desc}
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '4px' }}>
+            <Link
+              href={activeToast.link}
+              onClick={() => setActiveToast(null)}
+              className="btn btn-primary btn-sm"
+              style={{ fontSize: '0.72rem', padding: '3px 10px' }}
+            >
+              View Now →
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Top Header / App Bar */}
       <header className="admin-topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
@@ -68,10 +241,32 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </svg>
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="logo-text-gold">BYT</span>
+          {/* Logo with interactive click to change */}
+          <button
+            type="button"
+            onClick={() => setShowLogoModal(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              padding: 0
+            }}
+            title="Click to customize brand logo"
+          >
+            {customLogo && (customLogo.startsWith('data:') || customLogo.startsWith('http')) ? (
+              <img
+                src={customLogo}
+                alt="Brand Logo"
+                style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
+              />
+            ) : (
+              <span className="logo-text-gold">{customLogo || 'BYT'}</span>
+            )}
             <span className="topbar-title">Fleet Command</span>
-          </div>
+          </button>
         </div>
 
         {/* Center/Right Actions */}
@@ -81,6 +276,28 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <span className="pulse-dot" />
             <span className="status-text">Fleet Active • 8 Online</span>
           </div>
+
+          {/* Change Logo Button */}
+          <button
+            type="button"
+            onClick={() => setShowLogoModal(true)}
+            className="btn btn-secondary btn-sm"
+            style={{ fontSize: '0.75rem', gap: '4px' }}
+            title="Upload or change your company logo"
+          >
+            <span>🎨</span> Change Logo
+          </button>
+
+          {/* Test Driver Alert Trigger */}
+          <button
+            type="button"
+            onClick={triggerSimulatedDriverAlert}
+            className="btn btn-ghost btn-sm"
+            style={{ fontSize: '0.75rem', color: 'var(--byt-gold)', border: '1px dashed rgba(212, 168, 67, 0.4)' }}
+            title="Test an incoming message/report notification from a driver"
+          >
+            ⚡ Test Driver Alert
+          </button>
 
           {/* Interactive Notifications Bell */}
           <div style={{ position: 'relative' }}>
@@ -103,24 +320,26 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               title="Fleet Notifications"
             >
               <span style={{ fontSize: '1.05rem' }}>🔔</span>
-              <span style={{
-                position: 'absolute',
-                top: -3,
-                right: -3,
-                width: 16,
-                height: 16,
-                borderRadius: '50%',
-                background: 'var(--color-red)',
-                color: 'white',
-                fontSize: '0.62rem',
-                fontWeight: 800,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)'
-              }}>
-                2
-              </span>
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: -3,
+                  right: -3,
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  background: 'var(--color-red)',
+                  color: 'white',
+                  fontSize: '0.62rem',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)'
+                }}>
+                  {unreadCount}
+                </span>
+              )}
             </button>
 
             {/* Notifications Dropdown */}
@@ -130,8 +349,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   position: 'absolute',
                   top: '120%',
                   right: 0,
-                  width: 320,
-                  background: 'rgba(10, 22, 40, 0.95)',
+                  width: 340,
+                  background: 'rgba(10, 22, 40, 0.96)',
                   backdropFilter: 'blur(20px)',
                   border: '1px solid var(--color-border)',
                   borderRadius: 'var(--radius-lg)',
@@ -142,19 +361,26 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)', borderBottom: '1px solid var(--color-border)', paddingBottom: 'var(--space-xs)' }}>
-                  <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>Notifications</span>
-                  <span className="badge badge-gold" style={{ fontSize: '0.65rem' }}>2 Unread</span>
+                  <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>Driver Messages & Reports</span>
+                  <span className="badge badge-gold" style={{ fontSize: '0.65rem' }}>{unreadCount} Unread</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
                   {notifications.map(n => (
-                    <div
+                    <Link
                       key={n.id}
+                      href={n.link}
+                      onClick={() => {
+                        setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, unread: false } : x));
+                        setShowNotifications(false);
+                      }}
                       style={{
                         padding: '8px',
                         borderRadius: 'var(--radius-sm)',
                         background: n.unread ? 'rgba(212, 168, 67, 0.08)' : 'transparent',
                         border: n.unread ? '1px solid rgba(212, 168, 67, 0.2)' : '1px solid transparent',
-                        fontSize: '0.78rem'
+                        fontSize: '0.78rem',
+                        textDecoration: 'none',
+                        display: 'block'
                       }}
                     >
                       <div style={{ fontWeight: 600, color: 'var(--color-text)', display: 'flex', justifyContent: 'space-between' }}>
@@ -162,16 +388,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         <span className="text-muted" style={{ fontSize: '0.68rem' }}>{n.time}</span>
                       </div>
                       <div className="text-muted" style={{ marginTop: '2px', lineHeight: 1.4 }}>{n.desc}</div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
-                <div style={{ marginTop: '8px', textAlign: 'center', borderTop: '1px solid var(--color-border)', paddingTop: '6px' }}>
+                <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', paddingTop: '6px' }}>
                   <Link
                     href="/admin/reports"
                     onClick={() => setShowNotifications(false)}
                     style={{ fontSize: '0.75rem', color: 'var(--byt-gold)' }}
                   >
-                    View all reports & alerts →
+                    All Reports →
+                  </Link>
+                  <Link
+                    href="/admin/drivers"
+                    onClick={() => setShowNotifications(false)}
+                    style={{ fontSize: '0.75rem', color: 'var(--byt-gold)' }}
+                  >
+                    Driver Chats →
                   </Link>
                 </div>
               </div>
@@ -208,9 +441,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <Link href="/" className="btn btn-ghost btn-sm" style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+          {/* Reliable Sign Out with full redirect to / */}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="btn btn-ghost btn-sm"
+            style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+            title="Sign out and return to login page"
+          >
             🚪 Sign Out
-          </Link>
+          </button>
         </div>
       </header>
 
@@ -226,9 +466,27 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <aside className={`sidebar ${sidebarOpen ? 'desktop-open' : 'desktop-closed'} ${mobileDrawerOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-brand">
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-            <div className="logo">BYT</div>
+            {customLogo && (customLogo.startsWith('data:') || customLogo.startsWith('http')) ? (
+              <img
+                src={customLogo}
+                alt="Logo"
+                style={{ width: 38, height: 38, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
+              />
+            ) : (
+              <div className="logo">{customLogo || 'BYT'}</div>
+            )}
             <div>
-              <h1>BYT Fleet</h1>
+              <h1 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>BYT Fleet</span>
+                <button
+                  type="button"
+                  onClick={() => setShowLogoModal(true)}
+                  style={{ background: 'none', border: 'none', color: 'var(--byt-gold)', cursor: 'pointer', fontSize: '0.75rem', padding: 0 }}
+                  title="Change brand logo"
+                >
+                  ✏️
+                </button>
+              </h1>
               <div className="motto">Your Fleet. Your Control.</div>
             </div>
           </div>
@@ -295,10 +553,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="sidebar-footer">
-          <Link href="/" className="nav-item" style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: 0 }}>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="nav-item"
+            style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: 0, background: 'none', border: 'none', cursor: 'pointer' }}
+          >
             <span style={{ fontSize: '1rem' }}>🚪</span>
             <span>Sign Out</span>
-          </Link>
+          </button>
 
           <button
             type="button"
@@ -315,6 +578,120 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <main className="main-content">
         {children}
       </main>
+
+      {/* CHANGE LOGO MODAL */}
+      {showLogoModal && (
+        <div className="modal-overlay" onClick={() => setShowLogoModal(false)}>
+          <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🎨 Change Brand Logo</h3>
+              <button type="button" className="btn btn-ghost btn-icon" onClick={() => setShowLogoModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ textAlign: 'center', marginBottom: 'var(--space-md)' }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '8px' }}>Current Logo Preview:</div>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '12px 24px',
+                  background: 'var(--color-bg-input)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--color-border)'
+                }}>
+                  {customLogo && (customLogo.startsWith('data:') || customLogo.startsWith('http')) ? (
+                    <img src={customLogo} alt="Preview" style={{ height: 48, objectFit: 'contain' }} />
+                  ) : (
+                    <span className="logo-text-gold" style={{ fontSize: '1.5rem', fontWeight: 900 }}>
+                      {customLogo || 'BYT'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Option 1: File Upload */}
+              <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
+                <label className="form-label">Upload Logo Image from Computer</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoFileUpload}
+                  className="form-input"
+                  style={{ padding: '0.4rem', fontSize: '0.8rem' }}
+                />
+                <div className="text-xs text-muted" style={{ marginTop: '4px' }}>
+                  Supports PNG, JPG, or SVG (transparent background recommended).
+                </div>
+              </div>
+
+              {/* Option 2: Image URL */}
+              <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
+                <label className="form-label">Or Paste Logo Image URL</label>
+                <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                  <input
+                    type="url"
+                    className="form-input"
+                    placeholder="https://example.com/logo.png"
+                    value={logoInputUrl}
+                    onChange={e => setLogoInputUrl(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                      if (logoInputUrl.trim()) {
+                        handleSaveLogo(logoInputUrl.trim());
+                      }
+                    }}
+                  >
+                    Save URL
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 3: Custom Text Logo */}
+              <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
+                <label className="form-label">Or Set Brand Initials / Text</label>
+                <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                  <input
+                    type="text"
+                    maxLength={10}
+                    className="form-input"
+                    placeholder="e.g. BYT or ACCRA"
+                    value={logoText}
+                    onChange={e => setLogoText(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      if (logoText.trim()) {
+                        handleSaveLogo(logoText.trim().toUpperCase());
+                      }
+                    }}
+                  >
+                    Set Text
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={handleResetLogo}
+                style={{ color: 'var(--color-red)' }}
+              >
+                Reset to Default Logo
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowLogoModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         /* TOPBAR */
