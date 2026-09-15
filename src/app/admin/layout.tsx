@@ -126,38 +126,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     e.target.value = '';
   };
 
-  // Simulate incoming driver report or message
-  const triggerSimulatedDriverAlert = () => {
-    const isReport = Math.random() > 0.5;
-    const newNotif: NotificationItem = isReport
-      ? {
-          id: `n-${Date.now()}`,
-          title: '🚨 New Driver Incident Report',
-          desc: 'Kofi Boateng reported: "AC stopped cooling on Hyundai Accent (GW-9012-23)"',
-          time: 'Just now',
-          type: 'REPORT',
-          unread: true,
-          link: '/admin/reports'
-        }
-      : {
-          id: `n-${Date.now()}`,
-          title: '💬 New Message from Driver',
-          desc: 'Yaa Serwaa: "Completed afternoon shift, checking in at station."',
-          time: 'Just now',
-          type: 'MESSAGE',
-          unread: true,
-          link: '/admin/drivers'
-        };
-
-    setNotifications(prev => [newNotif, ...prev]);
-    setActiveToast(newNotif);
-
-    // Auto dismiss toast after 6s
-    setTimeout(() => {
-      setActiveToast(current => current?.id === newNotif.id ? null : current);
-    }, 6000);
-  };
-
   const unreadCount = notifications.filter(n => n.unread).length;
 
   const filteredNav = quickSearch.trim()
@@ -276,17 +244,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <span className="pulse-dot" />
             <span className="status-text">Fleet Active • 8 Online</span>
           </div>
-
-          {/* Test Driver Alert Trigger */}
-          <button
-            type="button"
-            onClick={triggerSimulatedDriverAlert}
-            className="btn btn-ghost btn-sm"
-            style={{ fontSize: '0.75rem', color: 'var(--byt-gold)', border: '1px dashed rgba(212, 168, 67, 0.4)' }}
-            title="Test an incoming message/report notification from a driver"
-          >
-            ⚡ Test Driver Alert
-          </button>
 
           {/* Interactive Notifications Bell */}
           <div style={{ position: 'relative' }}>
