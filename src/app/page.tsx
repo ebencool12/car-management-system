@@ -271,48 +271,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Demo credentials hint with quick-fill buttons */}
-        <div style={{ marginTop: 'var(--space-lg)', display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={() => selectRole('admin')}
-            style={{
-              background: 'rgba(245, 158, 11, 0.1)',
-              border: '1px solid rgba(245, 158, 11, 0.3)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '6px 12px',
-              color: 'var(--byt-gold)',
-              fontSize: '0.75rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <span>👑</span>
-            <span><strong>Admin Auto-fill:</strong> admin@byt.com / admin123</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => selectRole('driver')}
-            style={{
-              background: 'rgba(148, 163, 184, 0.1)',
-              border: '1px solid rgba(148, 163, 184, 0.2)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '6px 12px',
-              color: 'var(--color-text-secondary)',
-              fontSize: '0.75rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <span>🚗</span>
-            <span><strong>Driver Auto-fill:</strong> kwame@gmail.com / driver123</span>
-          </button>
-        </div>
-
         {/* Apply link */}
         <div style={{ marginTop: 'var(--space-lg)', textAlign: 'center' }}>
           <a href="/apply" style={{ fontSize: '0.85rem', color: 'var(--byt-gold)' }}>
