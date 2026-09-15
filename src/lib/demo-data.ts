@@ -22,6 +22,19 @@ export interface Vehicle {
   gpsDeviceId: string;
   assignedDriver?: string | null;
   assignedDriverName?: string | null;
+  images?: string[];
+}
+
+export interface PaymentChannel {
+  id: string;
+  name: string;
+  type: 'MOMO' | 'CASH' | 'BANK';
+  icon: string;
+  enabledForDrivers: boolean; // Driver can pay BYT with this
+  enabledForDisbursement: boolean; // BYT can pay Driver with this
+  accountNumber?: string;
+  accountName?: string;
+  instructions?: string;
 }
 
 export interface Application {
@@ -110,14 +123,169 @@ export const demoDrivers: Driver[] = [
 ];
 
 export const demoVehicles: Vehicle[] = [
-  { id: 'v1', plateNumber: 'GR-1234-22', make: 'Toyota', model: 'Corolla', year: 2019, severityStatus: 'GREEN', gpsDeviceId: 'GPS-001', assignedDriverName: 'Kwame Asante' },
-  { id: 'v2', plateNumber: 'GR-5678-21', make: 'Toyota', model: 'Yaris', year: 2020, severityStatus: 'GREEN', gpsDeviceId: 'GPS-002', assignedDriverName: 'Ama Mensah' },
-  { id: 'v3', plateNumber: 'GW-9012-23', make: 'Hyundai', model: 'Accent', year: 2021, severityStatus: 'YELLOW', gpsDeviceId: 'GPS-003', assignedDriverName: 'Kofi Boateng' },
-  { id: 'v4', plateNumber: 'GR-3456-20', make: 'Kia', model: 'Rio', year: 2018, severityStatus: 'RED', gpsDeviceId: 'GPS-004', assignedDriverName: 'Yaa Serwaa' },
-  { id: 'v5', plateNumber: 'GN-7890-22', make: 'Toyota', model: 'Camry', year: 2022, severityStatus: 'GREEN', gpsDeviceId: 'GPS-005', assignedDriverName: 'Kwesi Appiah' },
-  { id: 'v6', plateNumber: 'GT-2345-21', make: 'Nissan', model: 'Versa', year: 2020, severityStatus: 'GREEN', gpsDeviceId: 'GPS-006', assignedDriverName: 'Akua Donkor' },
-  { id: 'v7', plateNumber: 'GR-6789-23', make: 'Hyundai', model: 'Elantra', year: 2023, severityStatus: 'YELLOW', gpsDeviceId: 'GPS-007', assignedDriverName: 'Nana Osei' },
-  { id: 'v8', plateNumber: 'GW-0123-22', make: 'Toyota', model: 'Corolla', year: 2021, severityStatus: 'GREEN', gpsDeviceId: 'GPS-008', assignedDriverName: 'Efua Amoah' },
+  {
+    id: 'v1',
+    plateNumber: 'GR-1234-22',
+    make: 'Toyota',
+    model: 'Corolla',
+    year: 2019,
+    severityStatus: 'GREEN',
+    gpsDeviceId: 'GPS-001',
+    assignedDriverName: 'Kwame Asante',
+    images: [
+      'https://images.unsplash.com/photo-1623869675781-80aa31012a5a?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    id: 'v2',
+    plateNumber: 'GR-5678-21',
+    make: 'Toyota',
+    model: 'Yaris',
+    year: 2020,
+    severityStatus: 'GREEN',
+    gpsDeviceId: 'GPS-002',
+    assignedDriverName: 'Ama Mensah',
+    images: [
+      'https://images.unsplash.com/photo-1590362891991-f776e747a588?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    id: 'v3',
+    plateNumber: 'GW-9012-23',
+    make: 'Hyundai',
+    model: 'Accent',
+    year: 2021,
+    severityStatus: 'YELLOW',
+    gpsDeviceId: 'GPS-003',
+    assignedDriverName: 'Kofi Boateng',
+    images: [
+      'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    id: 'v4',
+    plateNumber: 'GR-3456-20',
+    make: 'Kia',
+    model: 'Rio',
+    year: 2018,
+    severityStatus: 'RED',
+    gpsDeviceId: 'GPS-004',
+    assignedDriverName: 'Yaa Serwaa',
+    images: [
+      'https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    id: 'v5',
+    plateNumber: 'GN-7890-22',
+    make: 'Toyota',
+    model: 'Camry',
+    year: 2022,
+    severityStatus: 'GREEN',
+    gpsDeviceId: 'GPS-005',
+    assignedDriverName: 'Kwesi Appiah',
+    images: [
+      'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    id: 'v6',
+    plateNumber: 'GT-2345-21',
+    make: 'Nissan',
+    model: 'Versa',
+    year: 2020,
+    severityStatus: 'GREEN',
+    gpsDeviceId: 'GPS-006',
+    assignedDriverName: 'Akua Donkor',
+    images: [
+      'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    id: 'v7',
+    plateNumber: 'GR-6789-23',
+    make: 'Hyundai',
+    model: 'Elantra',
+    year: 2023,
+    severityStatus: 'YELLOW',
+    gpsDeviceId: 'GPS-007',
+    assignedDriverName: 'Nana Osei',
+    images: [
+      'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+  {
+    id: 'v8',
+    plateNumber: 'GW-0123-22',
+    make: 'Toyota',
+    model: 'Corolla',
+    year: 2021,
+    severityStatus: 'GREEN',
+    gpsDeviceId: 'GPS-008',
+    assignedDriverName: 'Efua Amoah',
+    images: [
+      'https://images.unsplash.com/photo-1617469767053-d3b523a0b982?w=800&auto=format&fit=crop&q=80'
+    ]
+  },
+];
+
+export const demoPaymentChannels: PaymentChannel[] = [
+  {
+    id: 'pay-momo-mtn',
+    name: 'MTN Mobile Money',
+    type: 'MOMO',
+    icon: '🟡',
+    enabledForDrivers: true,
+    enabledForDisbursement: true,
+    accountNumber: '024 123 4567',
+    accountName: 'BYT Fleet Ent',
+    instructions: 'Send money to MTN Merchant ID / Phone and enter your transaction ID.'
+  },
+  {
+    id: 'pay-momo-telecel',
+    name: 'Telecel Cash',
+    type: 'MOMO',
+    icon: '🔴',
+    enabledForDrivers: true,
+    enabledForDisbursement: true,
+    accountNumber: '020 987 6543',
+    accountName: 'BYT Fleet Ent',
+    instructions: 'Use Telecel Cash to transfer and submit your transaction reference.'
+  },
+  {
+    id: 'pay-momo-at',
+    name: 'AirtelTigo Money',
+    type: 'MOMO',
+    icon: '🔵',
+    enabledForDrivers: false,
+    enabledForDisbursement: false,
+    accountNumber: '027 555 1234',
+    accountName: 'BYT Fleet Ent',
+    instructions: 'Transfer to AT Money and enter reference code.'
+  },
+  {
+    id: 'pay-cash',
+    name: 'Cash Handover (Office)',
+    type: 'CASH',
+    icon: '💵',
+    enabledForDrivers: true,
+    enabledForDisbursement: true,
+    accountNumber: 'Front Desk / Cashier',
+    accountName: 'BYT Fleet Dispatch',
+    instructions: 'Deliver physical cash to the BYT Cashier. A stamped receipt will be issued.'
+  },
+  {
+    id: 'pay-bank-gcb',
+    name: 'Bank Transfer (GCB Bank)',
+    type: 'BANK',
+    icon: '🏦',
+    enabledForDrivers: true,
+    enabledForDisbursement: true,
+    accountNumber: '1012398472948',
+    accountName: 'BYT Fleet Enterprise Ltd',
+    instructions: 'Transfer via Mobile App / GhIPSS Instant Pay (GIP) with your driver ID as note.'
+  }
 ];
 
 export const demoApplications: Application[] = [

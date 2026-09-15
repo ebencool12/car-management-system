@@ -1,18 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { formatCurrency } from '@/lib/demo-data';
+import { formatCurrency, demoPaymentChannels, PaymentChannel } from '@/lib/demo-data';
 
 export default function DriverSalesPage() {
-  const [method, setMethod] = useState<'MOMO' | 'CASH'>('MOMO');
+  const availableChannels = demoPaymentChannels.filter(c => c.enabledForDrivers);
+  const [selectedChannel, setSelectedChannel] = useState<PaymentChannel>(availableChannels[0] || demoPaymentChannels[0]);
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   const history = [
-    { week: '2026-W38', amount: 520, method: 'MOMO', ref: 'MTN7834521098', status: 'PENDING' },
-    { week: '2026-W37', amount: 495, method: 'CASH', ref: null, status: 'CONFIRMED' },
-    { week: '2026-W36', amount: 530, method: 'MOMO', ref: 'MTN1234567890', status: 'CONFIRMED' },
+    { week: '2026-W38', amount: 520, method: 'MTN Mobile Money', ref: 'MTN7834521098', status: 'PENDING' },
+    { week: '2026-W37', amount: 495, method: 'Cash Handover', ref: null, status: 'CONFIRMED' },
+    { week: '2026-W36', amount: 530, method: 'MTN Mobile Money', ref: 'MTN1234567890', status: 'CONFIRMED' },
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -34,25 +35,72 @@ export default function DriverSalesPage() {
           {submitted ? (
             <div style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
               <div style={{ fontSize: '2.5rem', marginBottom: 'var(--space-md)' }}>✅</div>
-              <h3>Sales Submitted!</h3>
-              <p className="text-sm text-muted">Your admin will confirm the payment.</p>
+              <h3>Sales Submitted via {selectedChannel.name}!</h3>
+              <p className="text-sm text-muted">Your admin will verify and confirm the payment.</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
+              {/* Payment Method Selector */}
               <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
-                <label className="form-label">Payment Method</label>
-                <div style={{ display: 'flex', gap: '2px', background: 'var(--color-bg-input)', borderRadius: 'var(--radius-md)', padding: '3px' }}>
-                  <button type="button" className={`btn btn-sm ${method === 'MOMO' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setMethod('MOMO')} style={{ flex: 1 }}>
-                    📱 Momo
-                  </button>
-                  <button type="button" className={`btn btn-sm ${method === 'CASH' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setMethod('CASH')} style={{ flex: 1 }}>
-                    💵 Cash
-                  </button>
+                <label className="form-label">Choose Means of Payment (Approved by BYT Admin)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '6px', marginBottom: 'var(--space-sm)' }}>
+                  {availableChannels.map(chan => (
+                    <button
+                      key={chan.id}
+                      type="button"
+                      className={`btn btn-sm ${selectedChannel.id === chan.id ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => setSelectedChannel(chan)}
+                      style={{
+                        padding: '0.5rem',
+                        fontSize: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        border: selectedChannel.id === chan.id ? '1px solid var(--byt-gold)' : '1px solid var(--color-border)'
+                      }}
+                    >
+                      <span>{chan.icon}</span>
+                      <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{chan.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Selected Channel Details & Instructions */}
+                <div style={{
+                  padding: 'var(--space-md)',
+                  background: 'var(--color-bg-input)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--color-border)',
+                  fontSize: '0.8rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span className="font-semibold text-gold">{selectedChannel.name}</span>
+                    <span className="badge badge-gold" style={{ fontSize: '0.65rem' }}>{selectedChannel.type}</span>
+                  </div>
+                  {selectedChannel.accountNumber && (
+                    <div style={{ margin: '2px 0' }}>
+                      <span className="text-muted">Merchant / Account: </span>
+                      <strong className="font-mono text-white">{selectedChannel.accountNumber}</strong>
+                    </div>
+                  )}
+                  {selectedChannel.accountName && (
+                    <div style={{ margin: '2px 0' }}>
+                      <span className="text-muted">Account Name: </span>
+                      <strong>{selectedChannel.accountName}</strong>
+                    </div>
+                  )}
+                  {selectedChannel.instructions && (
+                    <div className="text-xs text-muted" style={{ marginTop: '6px', borderTop: '1px solid var(--color-border)', paddingTop: '4px' }}>
+                      ℹ️ {selectedChannel.instructions}
+                    </div>
+                  )}
                 </div>
               </div>
 
+              {/* Amount */}
               <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
-                <label className="form-label">Amount (GHS)</label>
+                <label className="form-label">Sales Amount (GHS)</label>
                 <input
                   className="form-input"
                   type="number"
@@ -65,26 +113,28 @@ export default function DriverSalesPage() {
                 />
               </div>
 
-              {method === 'MOMO' && (
+              {/* Transaction Reference (if Momo or Bank) */}
+              {selectedChannel.type !== 'CASH' && (
                 <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
-                  <label className="form-label">Momo Transaction Reference</label>
+                  <label className="form-label">{selectedChannel.name} Transaction Reference</label>
                   <input
                     className="form-input"
-                    placeholder="e.g. MTN1234567890"
+                    placeholder="e.g. MTN1234567890 or Bank Ref ID"
                     value={reference}
                     onChange={e => setReference(e.target.value)}
                     required
                   />
                   <div className="text-xs text-muted" style={{ marginTop: '4px' }}>
-                    Find this in your Momo transaction SMS or app history
+                    Copy this code from your {selectedChannel.name} SMS or confirmation notice
                   </div>
                 </div>
               )}
 
-              {method === 'CASH' && (
+              {/* Cash notice */}
+              {selectedChannel.type === 'CASH' && (
                 <div style={{ padding: 'var(--space-md)', background: 'var(--color-yellow-bg)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-md)' }}>
                   <div className="text-sm" style={{ color: 'var(--color-yellow)' }}>
-                    ⚠️ Cash payments require physical handover confirmation from admin
+                    ⚠️ Physical cash handover requires cashier receipt confirmation from BYT dispatch
                   </div>
                 </div>
               )}
@@ -107,7 +157,7 @@ export default function DriverSalesPage() {
                 <div>
                   <div className="font-mono font-bold" style={{ color: 'var(--byt-gold)', fontSize: '1.1rem' }}>{formatCurrency(h.amount)}</div>
                   <div className="text-xs text-muted" style={{ marginTop: '2px' }}>
-                    {h.week} • <span className={`badge badge-${h.method === 'MOMO' ? 'gold' : 'cyan'}`} style={{ fontSize: '0.65rem' }}>{h.method}</span>
+                    {h.week} • <span className="badge badge-gold" style={{ fontSize: '0.65rem' }}>{h.method}</span>
                     {h.ref && <span className="font-mono" style={{ marginLeft: 'var(--space-sm)' }}>{h.ref}</span>}
                   </div>
                 </div>
