@@ -1,0 +1,36 @@
+
+> byt-fleet@0.1.0 dev
+> next dev
+
+▲ Next.js 16.3.5 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://172.20.10.2:3000
+- Environments: .env
+✓ Ready in 534ms
+✓ Running next.config.ts took 48ms
+
+ GET / 200 in 516ms (next.js: 326ms, application-code: 190ms)
+✓ Compiled in 110ms
+ GET / 200 in 41ms (next.js: 10ms, application-code: 31ms)
+ GET / 200 in 56ms (next.js: 6ms, application-code: 50ms)
+ GET / 200 in 33ms (next.js: 11ms, application-code: 23ms)
+ GET / 200 in 42ms (next.js: 14ms, application-code: 28ms)
+ GET /admin/fleet 200 in 374ms (next.js: 28ms, application-code: 345ms)
+ GET /admin/sales 200 in 373ms (next.js: 76ms, application-code: 298ms)
+ GET /driver/sales 200 in 374ms (next.js: 106ms, application-code: 267ms)
+ GET /admin 200 in 120ms (next.js: 71ms, application-code: 49ms)
+ GET /admin 200 in 67ms (next.js: 3ms, application-code: 64ms)
+ GET /admin/drivers 200 in 52ms (next.js: 29ms, application-code: 23ms)
+ GET /admin/fleet 200 in 21ms (next.js: 3ms, application-code: 18ms)
+ GET /admin/sales 200 in 23ms (next.js: 3ms, application-code: 20ms)
+ GET /admin/parts 200 in 57ms (next.js: 37ms, application-code: 20ms)
+ GET /admin/reports 200 in 52ms (next.js: 27ms, application-code: 25ms)
+ GET /admin/applications 200 in 48ms (next.js: 29ms, application-code: 19ms)
+ GET /admin/fleet 200 in 23ms (next.js: 6ms, application-code: 17ms)
+ GET /admin/sales 200 in 25ms (next.js: 6ms, application-code: 18ms)
+ GET /admin/financials 200 in 57ms (next.js: 33ms, application-code: 24ms)
+ GET /admin/fleet 200 in 21ms (next.js: 3ms, application-code: 18ms)
+✓ Compiled in 254ms
+ GET /admin/fleet 200 in 41ms (next.js: 10ms, application-code: 30ms)
+✓ Compiled in 122ms
+ GET /admin/fleet 200 in 64ms (next.js: 13ms, application-code: 51ms)
