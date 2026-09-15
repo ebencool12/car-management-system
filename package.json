@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "start:dev": "bash start.sh",
+    "stop": "bash stop.sh",
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
