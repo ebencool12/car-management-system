@@ -1,8 +1,13 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
+
+const noopSubscribe = () => () => {};
+function useIsClient() {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +17,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Mounted state for SSR hydration safety
+  const mounted = useIsClient();
 
   // Mouse position tracking for faint army green glowing ambient halo
   const [mousePos, setMousePos] = useState({ x: 600, y: 350 });
@@ -98,8 +106,8 @@ export default function LoginPage() {
       />
 
       <div className="login-card" style={{ position: 'relative', zIndex: 1 }}>
-        <div className="login-logo">
-          {customLogo ? (
+        <div className="login-logo" suppressHydrationWarning>
+          {mounted && customLogo ? (
             customLogo.startsWith('data:') || customLogo.startsWith('http') ? (
               <img
                 src={customLogo}

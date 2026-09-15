@@ -3,7 +3,12 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useSyncExternalStore } from 'react';
+
+const noopSubscribe = () => () => {};
+function useIsClient() {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
 
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: '📊' },
@@ -40,6 +45,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [quickSearch, setQuickSearch] = useState('');
 
   // Logo Customization State
+  const mounted = useIsClient();
   const [showLogoModal, setShowLogoModal] = useState(false);
   const [customLogo, setCustomLogo] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -212,6 +218,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           {/* Logo with interactive click to change */}
           <button
             type="button"
+            suppressHydrationWarning
             onClick={() => setShowLogoModal(true)}
             style={{
               background: 'none',
@@ -224,14 +231,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             }}
             title="Click to customize brand logo"
           >
-            {customLogo && (customLogo.startsWith('data:') || customLogo.startsWith('http')) ? (
+            {mounted && customLogo && (customLogo.startsWith('data:') || customLogo.startsWith('http')) ? (
               <img
                 src={customLogo}
                 alt="Brand Logo"
                 style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
               />
             ) : (
-              <span className="logo-text-gold">{customLogo || 'BYT'}</span>
+              <span className="logo-text-gold">{mounted && customLogo ? customLogo : 'BYT'}</span>
             )}
             <span className="topbar-title">Fleet Command</span>
           </button>
@@ -410,16 +417,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Sidebar Navigation */}
       <aside className={`sidebar ${sidebarOpen ? 'desktop-open' : 'desktop-closed'} ${mobileDrawerOpen ? 'mobile-open' : ''}`}>
-        <div className="sidebar-brand">
+        <div className="sidebar-brand" suppressHydrationWarning>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-            {customLogo && (customLogo.startsWith('data:') || customLogo.startsWith('http')) ? (
+            {mounted && customLogo && (customLogo.startsWith('data:') || customLogo.startsWith('http')) ? (
               <img
                 src={customLogo}
                 alt="Logo"
                 style={{ width: 38, height: 38, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
               />
             ) : (
-              <div className="logo">{customLogo || 'BYT'}</div>
+              <div className="logo">{mounted && customLogo ? customLogo : 'BYT'}</div>
             )}
             <div>
               <h1 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
