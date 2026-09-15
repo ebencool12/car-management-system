@@ -277,17 +277,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <span className="status-text">Fleet Active • 8 Online</span>
           </div>
 
-          {/* Change Logo Button */}
-          <button
-            type="button"
-            onClick={() => setShowLogoModal(true)}
-            className="btn btn-secondary btn-sm"
-            style={{ fontSize: '0.75rem', gap: '4px' }}
-            title="Upload or change your company logo"
-          >
-            <span>🎨</span> Change Logo
-          </button>
-
           {/* Test Driver Alert Trigger */}
           <button
             type="button"
@@ -584,7 +573,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="modal-overlay" onClick={() => setShowLogoModal(false)}>
           <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>🎨 Change Brand Logo</h3>
+              <h3>Brand Logo Settings</h3>
               <button type="button" className="btn btn-ghost btn-icon" onClick={() => setShowLogoModal(false)}>✕</button>
             </div>
             <div className="modal-body">
