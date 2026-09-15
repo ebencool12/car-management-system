@@ -55,14 +55,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </svg>
           </button>
 
-          {/* Text status button for desktop */}
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className="sidebar-toggle-text-btn"
-          >
-            {sidebarOpen ? '◀ Close Sidebar' : '▶ Open Sidebar'}
-          </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="logo-text-gold">BYT</span>
