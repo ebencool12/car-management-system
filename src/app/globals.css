@@ -1631,3 +1631,75 @@ tbody tr:hover {
   outline: none;
 }
 
+/* ============================================
+   PREMIUM REDESIGNED SIGN OUT BUTTONS
+   ============================================ */
+.signout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  border-radius: var(--radius-md);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
+}
+
+.signout-btn:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.35), 0 4px 12px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+}
+
+.signout-btn:active {
+  transform: translateY(0);
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.signout-btn .signout-icon {
+  transition: transform 0.2s ease;
+}
+
+.signout-btn:hover .signout-icon {
+  transform: translateX(2px);
+  color: #ef4444;
+}
+
+.sidebar-signout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sidebar-signout-btn:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+}
+
+.sidebar-signout-btn svg {
+  transition: transform 0.2s ease;
+}
+
+.sidebar-signout-btn:hover svg {
+  transform: translateX(2px);
+}
+

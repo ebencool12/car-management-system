@@ -394,15 +394,29 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          {/* Reliable Sign Out with full redirect to / */}
+          {/* Redesigned Premium Sign Out Button */}
           <button
             type="button"
             onClick={handleSignOut}
-            className="btn btn-ghost btn-sm"
-            style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', cursor: 'pointer' }}
-            title="Sign out and return to login page"
+            className="signout-btn"
+            title="Sign out of BYT Fleet and return to login"
           >
-            🚪 Sign Out
+            <svg
+              className="signout-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Sign Out</span>
           </button>
         </div>
       </header>
@@ -509,10 +523,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={handleSignOut}
-            className="nav-item"
-            style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: 0, background: 'none', border: 'none', cursor: 'pointer' }}
+            className="sidebar-signout-btn"
+            title="Sign out of BYT Fleet"
           >
-            <span style={{ fontSize: '1rem' }}>🚪</span>
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
             <span>Sign Out</span>
           </button>
 
