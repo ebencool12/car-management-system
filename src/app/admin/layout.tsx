@@ -674,6 +674,55 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
 
+      {/* Admin Mobile Bottom Quick Navigation (Shown only on small screens) */}
+      <nav className="admin-mobile-bottom-nav">
+        <Link href="/admin" className={pathname === '/admin' ? 'active' : ''}>
+          <span className="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </Link>
+        <Link href="/admin/fleet" className={pathname.startsWith('/admin/fleet') ? 'active' : ''}>
+          <span className="nav-icon">🚗</span>
+          <span>Fleet</span>
+        </Link>
+        <Link href="/admin/gps" className={pathname.startsWith('/admin/gps') ? 'active' : ''}>
+          <span className="nav-icon">📍</span>
+          <span>Live GPS</span>
+        </Link>
+        <Link href="/admin/chat" className={pathname.startsWith('/admin/chat') ? 'active' : ''} style={{ position: 'relative' }}>
+          <span className="nav-icon">💬</span>
+          <span>Dispatch</span>
+          {adminUnreadChatCount > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: 4,
+                right: '25%',
+                background: '#ef4444',
+                color: 'white',
+                fontSize: '0.6rem',
+                fontWeight: 800,
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {adminUnreadChatCount}
+            </span>
+          )}
+        </Link>
+        <button
+          type="button"
+          onClick={() => setMobileDrawerOpen(true)}
+          className="admin-mobile-menu-btn"
+        >
+          <span className="nav-icon">☰</span>
+          <span>Menu</span>
+        </button>
+      </nav>
+
       {/* GLOBAL IN-APP FREE CALL RECEIVER FOR ADMIN */}
       <IncomingCallModal currentUserId="admin" currentUserName="Emma (Admin Dispatch)" />
 
@@ -958,6 +1007,58 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           z-index: 95;
         }
 
+        /* ADMIN MOBILE BOTTOM NAV BAR */
+        .admin-mobile-bottom-nav {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .admin-mobile-bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 62px;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(16px);
+            border-top: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            z-index: 50;
+            padding: 0 4px;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+          }
+
+          .admin-mobile-bottom-nav a,
+          .admin-mobile-menu-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: #64748b;
+            text-decoration: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: var(--radius-sm);
+            transition: color 0.15s ease;
+          }
+
+          .admin-mobile-bottom-nav a.active {
+            color: var(--byt-sea);
+            font-weight: 700;
+          }
+
+          .admin-mobile-bottom-nav .nav-icon {
+            font-size: 1.15rem;
+          }
+        }
+
         @media (max-width: 1024px) {
           .admin-topbar {
             margin-left: 0 !important;
@@ -975,7 +1076,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
           .main-content {
             margin-left: 0 !important;
-            padding: var(--space-md) !important;
+            padding: var(--space-md) var(--space-md) 80px !important;
           }
         }
       `}</style>

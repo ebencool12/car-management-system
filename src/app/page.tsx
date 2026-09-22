@@ -228,6 +228,7 @@ export default function LoginPage() {
 
         {/* PRIMARY CARD CONTAINER - Crisp Border Elevation */}
         <div
+          className="login-card-container"
           style={{
             background: '#ffffff',
             border: '1px solid #e2e8f0',
@@ -518,33 +519,6 @@ export default function LoginPage() {
                 >
                   Password
                 </label>
-
-                {/* Monospace Quick Demo Autofill Pill */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (role === 'admin') {
-                      setEmail('admin@byt.com');
-                      setPassword('admin123');
-                    } else {
-                      setEmail('kwame@gmail.com');
-                      setPassword('driver123');
-                    }
-                  }}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#0891b2',
-                    fontSize: '0.72rem',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                    cursor: 'pointer',
-                    padding: '2px 4px',
-                    fontWeight: 600,
-                  }}
-                  title="Auto-fill demo credentials"
-                >
-                  Fill demo {role}
-                </button>
               </div>
 
               <div style={{ position: 'relative' }}>

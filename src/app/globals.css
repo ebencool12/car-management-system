@@ -1251,41 +1251,118 @@ tbody tr:hover {
 
 @media (max-width: 640px) {
   .main-content {
-    padding: var(--space-md);
+    padding: 12px 14px 84px !important;
   }
 
+  /* Admin and Driver Layout Mobile Adaptations */
+  .admin-topbar {
+    height: 54px !important;
+    padding: 0 12px !important;
+  }
+
+  .topbar-title {
+    display: none !important;
+  }
+
+  .signout-btn span {
+    display: none !important;
+  }
+
+  .signout-btn {
+    padding: 6px 8px !important;
+  }
+
+  /* Login Page Mobile Adaptations */
+  .login-page {
+    padding: 16px 12px !important;
+  }
+
+  .login-card-container {
+    padding: 1.5rem 1.15rem !important;
+    border-radius: 12px !important;
+  }
+
+  /* Responsive Grid System */
   .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .stat-card {
+    padding: 12px !important;
+  }
+
+  .stat-card .stat-number {
+    font-size: 1.35rem !important;
+  }
+
+  .stat-card .stat-title {
+    font-size: 0.72rem !important;
   }
 
   .grid-2, .grid-3, .grid-4 {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
   }
 
+  /* Typography & Headers */
   .page-header {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    margin-bottom: 1rem !important;
+    gap: 8px !important;
   }
 
   .page-header h1 {
-    font-size: 1.3rem;
+    font-size: 1.25rem !important;
   }
 
+  .page-header .subtitle {
+    font-size: 0.8rem !important;
+  }
+
+  /* Filters, Inputs & Forms */
   .filters-bar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
   }
 
   .search-box {
-    max-width: none;
+    max-width: none !important;
+    width: 100% !important;
   }
 
+  .filter-select, .date-filter {
+    width: 100% !important;
+  }
+
+  /* Tables Scrollable Container on Mobile */
   .table-container {
-    font-size: 0.8rem;
+    font-size: 0.78rem !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 8px !important;
   }
 
+  .table-container table {
+    min-width: 540px !important;
+  }
+
+  /* Chat & Modals */
   .chat-list {
-    width: 100%;
+    width: 100% !important;
+  }
+
+  /* Touch-friendly Tap Targets */
+  .btn {
+    min-height: 40px !important;
+    padding: 8px 14px !important;
+  }
+
+  .btn-sm {
+    min-height: 32px !important;
+    padding: 4px 10px !important;
   }
 }
 
