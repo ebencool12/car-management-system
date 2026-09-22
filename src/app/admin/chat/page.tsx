@@ -19,6 +19,7 @@ import {
   broadcastUserPresence,
   subscribeToPresence,
   formatLastSeen,
+  getSupportedAudioMimeType,
 } from '@/lib/communication';
 
 export default function AdminChatPage() {
@@ -189,17 +190,19 @@ export default function AdminChatPage() {
   const startAdminRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const mimeType = getSupportedAudioMimeType();
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const actualMime = recorder.mimeType || mimeType || 'audio/webm';
       adminRecordingChunksRef.current = [];
       isCancellingAdminRecRef.current = false;
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) adminRecordingChunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) adminRecordingChunksRef.current.push(e.data);
       };
 
       recorder.onstop = () => {
         if (!isCancellingAdminRecRef.current && adminRecordingChunksRef.current.length > 0) {
-          const blob = new Blob(adminRecordingChunksRef.current, { type: 'audio/webm' });
+          const blob = new Blob(adminRecordingChunksRef.current, { type: actualMime });
           const reader = new FileReader();
           reader.onloadend = () => {
             const base64Audio = reader.result as string;
@@ -229,7 +232,7 @@ export default function AdminChatPage() {
         broadcastUserPresence('admin', 'admin', 'Emma (Admin Dispatch)', conversationId, null);
       };
 
-      recorder.start(200);
+      recorder.start(250);
       adminMediaRecorderRef.current = recorder;
       setIsAdminRecording(true);
       setIsAdminPaused(false);
@@ -241,8 +244,13 @@ export default function AdminChatPage() {
       adminRecordingTimerRef.current = setInterval(() => {
         setAdminRecordDuration(prev => prev + 1);
       }, 1000);
-    } catch {
-      alert('Could not access microphone on this device. Please grant microphone permission.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('notallowed')) {
+        alert('Microphone permission was blocked. Please tap the lock / site settings icon in your browser address bar and allow Microphone.');
+      } else {
+        alert('Unable to access audio recording hardware. Please ensure your microphone is plugged in and allowed.');
+      }
     }
   };
 
@@ -563,9 +571,17 @@ export default function AdminChatPage() {
                       {msg.mediaUrl && (
                         <div style={{ marginBottom: '6px', borderRadius: 8, overflow: 'hidden' }}>
                           {msg.mediaType === 'audio' || msg.mediaUrl.startsWith('data:audio') ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px', background: isMe ? 'rgba(0,0,0,0.1)' : 'var(--color-bg-surface)', borderRadius: '8px' }}>
-                              <span>🎙️</span>
-                              <audio controls src={msg.mediaUrl} style={{ height: 32, maxWidth: 220 }} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px 8px', background: isMe ? 'rgba(0,0,0,0.1)' : 'var(--color-bg-surface)', borderRadius: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 600 }}>
+                                <span>🎙️</span>
+                                <span>Voice Note</span>
+                              </div>
+                              <audio
+                                controls
+                                preload="metadata"
+                                src={msg.mediaUrl}
+                                style={{ height: 36, maxWidth: 240, width: '100%', outline: 'none' }}
+                              />
                             </div>
                           ) : msg.mediaType === 'image' || msg.mediaUrl.startsWith('data:image') ? (
                             <img src={msg.mediaUrl} alt="Attached" style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain' }} />

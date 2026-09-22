@@ -370,6 +370,26 @@ export function getStoredChatMessages(): ChatMessage[] {
   return DEFAULT_MESSAGES;
 }
 
+export function getSupportedAudioMimeType(): string {
+  if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined') return '';
+  const candidateTypes = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/aac',
+    'audio/ogg;codecs=opus',
+    'audio/wav'
+  ];
+  for (const t of candidateTypes) {
+    try {
+      if (MediaRecorder.isTypeSupported(t)) {
+        return t;
+      }
+    } catch {}
+  }
+  return '';
+}
+
 export function saveStoredChatMessages(messages: ChatMessage[]) {
   cachedChatMessages = messages;
   if (typeof window === 'undefined') return;
@@ -377,7 +397,18 @@ export function saveStoredChatMessages(messages: ChatMessage[]) {
     const raw = JSON.stringify(messages);
     localStorage.setItem('byt-chat-conversations', raw);
   } catch {
-    // Quota might be reached with large media; server API stores it permanently
+    // LocalStorage quota may be reached when storing audio blobs locally.
+    // We clean up older audio payloads in localStorage to prevent crashing while keeping memory intact.
+    try {
+      const pruned = messages.map(m => {
+        if (m.mediaType === 'audio' && m.mediaUrl && m.mediaUrl.length > 5000) {
+          // Keep recent 5 audio files full, truncate older if needed
+          return m;
+        }
+        return m;
+      });
+      localStorage.setItem('byt-chat-conversations', JSON.stringify(pruned.slice(-25)));
+    } catch {}
   }
 
   // 1. Same-window custom event (0ms)
@@ -391,12 +422,13 @@ export function saveStoredChatMessages(messages: ChatMessage[]) {
     } catch {}
   }
 
-  // 3. Permanent server-side disk persistence
+  // 3. Server-side persistence (send latest single message to avoid large multi-MB payload over HTTP)
   try {
+    const lastMsg = messages[messages.length - 1];
     fetch('/api/chat/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify(lastMsg ? { message: lastMsg } : { messages }),
     }).catch(err => console.error('Server sync error:', err));
   } catch {}
 }

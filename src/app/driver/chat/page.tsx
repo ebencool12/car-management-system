@@ -17,6 +17,7 @@ import {
   broadcastUserPresence,
   subscribeToPresence,
   formatLastSeen,
+  getSupportedAudioMimeType,
 } from '@/lib/communication';
 
 export interface FileAttachment {
@@ -562,17 +563,19 @@ export default function DriverChatPage() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const mimeType = getSupportedAudioMimeType();
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const actualMime = recorder.mimeType || mimeType || 'audio/webm';
       recordingChunksRef.current = [];
       isCancellingRef.current = false;
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordingChunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) recordingChunksRef.current.push(e.data);
       };
 
       recorder.onstop = () => {
         if (!isCancellingRef.current && recordingChunksRef.current.length > 0) {
-          const blob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
+          const blob = new Blob(recordingChunksRef.current, { type: actualMime });
           const reader = new FileReader();
           reader.onloadend = () => {
             const base64Audio = reader.result as string;
@@ -581,7 +584,7 @@ export default function DriverChatPage() {
               ? `driver_${currentUserId}_admin`
               : `driver_${currentUserId}_driver_${targetRecipient}`;
             const audioMsg: ChatMessage = {
-              id: `audio-${Date.now()}`,
+              id: `audio-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               conversationId,
               senderId: currentUserId,
               senderName: currentUserName,
@@ -603,9 +606,10 @@ export default function DriverChatPage() {
         stream.getTracks().forEach(t => t.stop());
         recordingChunksRef.current = [];
         isCancellingRef.current = false;
+        broadcastUserPresence(currentUserId, 'driver', currentUserName, activeConversationId, null);
       };
 
-      recorder.start(200); // Small timeslice so chunks are saved smoothly during pause
+      recorder.start(250); // Timeslice so chunks stream smoothly
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
       setIsPaused(false);
@@ -616,8 +620,13 @@ export default function DriverChatPage() {
       recordingTimerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
-    } catch {
-      alert('Could not access microphone. Please check device permissions.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('notallowed')) {
+        alert('Microphone permission was blocked. Please tap the lock / site settings icon in your browser address bar and allow Microphone.');
+      } else {
+        alert('Unable to access audio recording hardware. Please ensure your microphone is plugged in and allowed.');
+      }
     }
   };
 
@@ -817,9 +826,17 @@ export default function DriverChatPage() {
                             </div>
                           </div>
                         ) : msg.mediaType === 'audio' || msg.mediaUrl.startsWith('data:audio') ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
-                            <span>🎙️</span>
-                            <audio controls src={msg.mediaUrl} style={{ height: 32, maxWidth: 220 }} />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px 8px', background: isMe ? 'rgba(255,255,255,0.2)' : 'var(--color-bg-input)', borderRadius: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 600 }}>
+                              <span>🎙️</span>
+                              <span>Voice Note</span>
+                            </div>
+                            <audio
+                              controls
+                              preload="metadata"
+                              src={msg.mediaUrl}
+                              style={{ height: 36, maxWidth: 240, width: '100%', outline: 'none' }}
+                            />
                           </div>
                         ) : (
                           <div style={{
