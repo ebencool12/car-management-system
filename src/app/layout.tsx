@@ -7,6 +7,10 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "BYT Fleet Management",
   description: "BYT Fleet Management Platform — Manage your fleet, drivers, vehicles, and finances all in one place.",
+  icons: {
+    icon: "/byt-logomark.svg",
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({

@@ -14,7 +14,7 @@ STOPPED=0
 # 1. Try stopping via PID file
 if [ -f "$PID_FILE" ]; then
   PID=$(cat "$PID_FILE")
-  if ps -p "$PID" > /dev/null 2>&1; then
+  if ps -p "$PID" -o command= 2>/dev/null | grep -qE "node|next"; then
     echo "Terminating process $PID..."
     kill -15 "$PID" 2>/dev/null
     sleep 1

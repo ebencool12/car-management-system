@@ -3,7 +3,11 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ReactNode, useState, useSyncExternalStore } from 'react';
+import { ReactNode, useState, useEffect, useSyncExternalStore } from 'react';
+import BiometricModal from '@/components/BiometricModal';
+import IncomingCallModal from '@/components/IncomingCallModal';
+import { getRegisteredBiometric, EnrolledBiometricUser } from '@/lib/biometrics';
+import { getUnreadMessageCount, subscribeToChatMessages } from '@/lib/communication';
 
 const noopSubscribe = () => () => {};
 function useIsClient() {
@@ -15,14 +19,16 @@ const navItems = [
   { section: 'MANAGEMENT' },
   { label: 'Drivers', href: '/admin/drivers', icon: '👥', badge: 2 },
   { label: 'Fleet', href: '/admin/fleet', icon: '🚗' },
-  { label: 'Applications', href: '/admin/applications', icon: '📋', badge: 2 },
+  { label: 'Applications', href: '/admin/applications', icon: '📋', badge: 1 },
   { section: 'OPERATIONS' },
-  { label: 'Reports', href: '/admin/reports', icon: '📝', badge: 3 },
+  { label: 'Reports', href: '/admin/reports', icon: '📝', badge: 2 },
+  { label: 'Dispatch Chat & Calls', href: '/admin/chat', icon: '💬' },
   { label: 'Parts Exchange', href: '/admin/parts', icon: '🔧' },
   { label: 'Sales & Balances', href: '/admin/sales', icon: '💰' },
   { section: 'MONITORING' },
   { label: 'GPS Map', href: '/admin/gps', icon: '📍' },
   { label: 'Financials', href: '/admin/financials', icon: '📈' },
+  { label: 'TCO & ROI Calculator', href: '/admin/tco', icon: '🧮' },
 ];
 
 interface NotificationItem {
@@ -42,7 +48,31 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [adminFocusMode, setAdminFocusMode] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
+
+  // Biometric Management State
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [enrolledBio, setEnrolledBio] = useState<EnrolledBiometricUser | null>(null);
+  const [adminUnreadChatCount, setAdminUnreadChatCount] = useState(0);
+
+  useEffect(() => {
+    setEnrolledBio(getRegisteredBiometric());
+    const updateUnread = () => setAdminUnreadChatCount(getUnreadMessageCount('admin'));
+    updateUnread();
+    const unsub = subscribeToChatMessages(updateUnread);
+    return () => unsub();
+  }, []);
+
+  // Escape key exits admin focus mode
+  useEffect(() => {
+    if (!adminFocusMode) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAdminFocusMode(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [adminFocusMode]);
 
   // Logo Customization State
   const mounted = useIsClient();
@@ -50,10 +80,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [customLogo, setCustomLogo] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       try {
-        return localStorage.getItem('byt-custom-logo');
+        const saved = localStorage.getItem('byt-custom-logo');
+        if (saved && (saved.startsWith('/') || saved.startsWith('http') || saved.startsWith('data:'))) {
+          return saved;
+        }
       } catch {}
     }
-    return null;
+    return '/byt-logomark.svg';
   });
   const [logoInputUrl, setLogoInputUrl] = useState('');
   const [logoText, setLogoText] = useState('BYT');
@@ -62,7 +95,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([
     {
       id: 'n1',
-      title: '🚨 Emergency Vehicle Report',
+      title: '🚨 Vehicle Report',
       desc: 'Kwame Asante reported low tire pressure on Toyota Corolla (GR-1234-22)',
       time: 'Just now',
       type: 'REPORT',
@@ -76,16 +109,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       time: '12m ago',
       type: 'MESSAGE',
       unread: true,
-      link: '/admin/drivers'
-    },
-    {
-      id: 'n3',
-      title: '💰 Weekly Sales Submitted',
-      desc: 'Kwame Asante submitted GHS 520.00 via MTN MoMo',
-      time: '45m ago',
-      type: 'SALES',
-      unread: false,
-      link: '/admin/sales'
+      link: '/admin/chat'
     },
   ]);
 
@@ -141,7 +165,35 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     : navItems;
 
   return (
-    <div className={`admin-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+    <div className={`admin-shell ${sidebarOpen && !adminFocusMode ? 'sidebar-open' : 'sidebar-closed'} ${adminFocusMode ? 'admin-focus-mode' : ''}`}>
+      {/* Floating Exit Button when admin focus mode is active */}
+      {adminFocusMode && (
+        <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 9999 }}>
+          <button
+            type="button"
+            onClick={() => setAdminFocusMode(false)}
+            style={{
+              background: 'rgba(15, 23, 42, 0.92)',
+              color: '#fff',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 14px',
+              borderRadius: '24px',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            <span>✕</span>
+            <span>Exit Focus Mode (Esc)</span>
+          </button>
+        </div>
+      )}
+
       {/* FLOATING LIVE TOAST NOTIFICATION FOR DRIVER MESSAGES/REPORTS */}
       {activeToast && (
         <div
@@ -150,10 +202,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             top: 72,
             right: 24,
             zIndex: 9999,
-            background: 'rgba(10, 22, 40, 0.95)',
+            background: 'rgba(255, 255, 255, 0.98)',
             backdropFilter: 'blur(20px)',
-            border: activeToast.type === 'REPORT' ? '1px solid #ef4444' : '1px solid var(--byt-gold)',
-            boxShadow: '0 16px 36px rgba(0,0,0,0.6), 0 0 25px rgba(212, 168, 67, 0.2)',
+            border: activeToast.type === 'REPORT' ? '1px solid #ef4444' : '1px solid var(--byt-sea)',
+            boxShadow: '0 16px 36px rgba(0,0,0,0.12), 0 0 25px rgba(8, 145, 178, 0.15)',
             borderRadius: 'var(--radius-lg)',
             padding: 'var(--space-md)',
             maxWidth: 360,
@@ -225,22 +277,33 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               border: 'none',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '12px',
               cursor: 'pointer',
               padding: 0
             }}
             title="Click to customize brand logo"
           >
-            {mounted && customLogo && (customLogo.startsWith('data:') || customLogo.startsWith('http')) ? (
+            {mounted ? (
               <img
-                src={customLogo}
-                alt="Brand Logo"
-                style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
+                src={customLogo || '/byt-logo.png'}
+                alt="BYT Brand Logo"
+                style={{ height: 38, maxWidth: 130, objectFit: 'contain', display: 'block' }}
               />
             ) : (
-              <span className="logo-text-gold">{mounted && customLogo ? customLogo : 'BYT'}</span>
+              <span className="logo-text-gold">BYT</span>
             )}
-            <span className="topbar-title">Fleet Command</span>
+            <span
+              className="topbar-title"
+              style={{
+                borderLeft: '1px solid var(--color-border)',
+                paddingLeft: '12px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                color: 'var(--color-text-secondary)',
+              }}
+            >
+              Fleet Command
+            </span>
           </button>
         </div>
 
@@ -249,7 +312,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           {/* Active Fleet Indicator */}
           <div className="status-badge-active">
             <span className="pulse-dot" />
-            <span className="status-text">Fleet Active • 8 Online</span>
+            <span className="status-text">Fleet Active • 2 Online</span>
           </div>
 
           {/* Interactive Notifications Bell */}
@@ -303,11 +366,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   top: '120%',
                   right: 0,
                   width: 340,
-                  background: 'rgba(10, 22, 40, 0.96)',
+                  background: 'rgba(255, 255, 255, 0.98)',
                   backdropFilter: 'blur(20px)',
                   border: '1px solid var(--color-border)',
                   borderRadius: 'var(--radius-lg)',
-                  boxShadow: '0 16px 36px rgba(0,0,0,0.6), 0 0 20px rgba(212, 168, 67, 0.15)',
+                  boxShadow: '0 16px 36px rgba(0,0,0,0.12), 0 0 20px rgba(8, 145, 178, 0.12)',
                   zIndex: 100,
                   padding: 'var(--space-md)',
                   animation: 'fadeInUp 0.2s ease-out'
@@ -329,8 +392,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                       style={{
                         padding: '8px',
                         borderRadius: 'var(--radius-sm)',
-                        background: n.unread ? 'rgba(212, 168, 67, 0.08)' : 'transparent',
-                        border: n.unread ? '1px solid rgba(212, 168, 67, 0.2)' : '1px solid transparent',
+                        background: n.unread ? 'rgba(8, 145, 178, 0.08)' : 'transparent',
+                        border: n.unread ? '1px solid rgba(8, 145, 178, 0.2)' : '1px solid transparent',
                         fontSize: '0.78rem',
                         textDecoration: 'none',
                         display: 'block'
@@ -364,6 +427,54 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             )}
           </div>
 
+
+          {/* Face ID / Fingerprint Biometric Access Button */}
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setShowBiometricModal(true)}
+            style={{
+              background: enrolledBio ? 'rgba(8, 145, 178, 0.12)' : 'var(--color-bg-card)',
+              border: enrolledBio ? '1.5px solid var(--byt-sea)' : '1px solid var(--color-border)',
+              color: enrolledBio ? 'var(--byt-sea-dark)' : 'var(--color-text)',
+              borderRadius: 'var(--radius-md)',
+              height: 38,
+              padding: '0 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+            }}
+            title={enrolledBio ? "Biometric login active on this device (Click to test/manage)" : "Enable Face ID / Fingerprint for Admin"}
+          >
+            <span style={{ fontSize: '1.05rem' }}>{enrolledBio?.biometricType === 'face-id' ? '👤' : '🫆'}</span>
+            <span className="hide-mobile">{enrolledBio ? 'Touch/Face ID' : 'Biometrics'}</span>
+          </button>
+
+          {/* Optional Fullscreen / Focus Mode Toggle */}
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            onClick={() => setAdminFocusMode(prev => !prev)}
+            style={{
+              background: adminFocusMode ? 'rgba(212, 168, 67, 0.15)' : 'var(--color-bg-card)',
+              border: adminFocusMode ? '1.5px solid var(--byt-gold)' : '1px solid var(--color-border)',
+              color: adminFocusMode ? 'var(--byt-gold)' : 'var(--color-text)',
+              borderRadius: 'var(--radius-md)',
+              width: 38,
+              height: 38,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer'
+            }}
+            title={adminFocusMode ? "Exit Focus Mode (Esc)" : "Optional Fullscreen Focus Mode"}
+          >
+            <span style={{ fontSize: '1.05rem' }}>{adminFocusMode ? '🗗' : '⛶'}</span>
+          </button>
+
           {/* Admin Profile Pill */}
           <div style={{
             display: 'flex',
@@ -386,11 +497,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-              BA
+              EM
             </div>
             <div style={{ lineHeight: 1.2 }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 600 }}>BYT Admin</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--byt-gold)' }}>Fleet Owner</div>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600 }}>Emma</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--byt-gold)' }}>Admin • 0208713722</div>
             </div>
           </div>
 
@@ -433,14 +544,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <aside className={`sidebar ${sidebarOpen ? 'desktop-open' : 'desktop-closed'} ${mobileDrawerOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-brand" suppressHydrationWarning>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-            {mounted && customLogo && (customLogo.startsWith('data:') || customLogo.startsWith('http')) ? (
+            {mounted ? (
               <img
-                src={customLogo}
-                alt="Logo"
-                style={{ width: 38, height: 38, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
+                src={customLogo || '/byt-logomark.svg'}
+                alt="BYT Fleet Logomark"
+                style={{ width: 44, height: 32, objectFit: 'contain' }}
               />
             ) : (
-              <div className="logo">{mounted && customLogo ? customLogo : 'BYT'}</div>
+              <div className="logo">BYT</div>
             )}
             <div>
               <h1 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -513,7 +624,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               >
                 <span style={{ fontSize: '1.1rem', width: 24, textAlign: 'center' }}>{item.icon}</span>
                 <span>{item.label}</span>
-                {item.badge && <span className="nav-badge">{item.badge}</span>}
+                {item.href === '/admin/chat' && adminUnreadChatCount > 0 ? (
+                  <span className="nav-badge" style={{ background: '#ef4444' }}>{adminUnreadChatCount}</span>
+                ) : (
+                  item.badge && <span className="nav-badge">{item.badge}</span>
+                )}
               </Link>
             );
           })}
@@ -558,6 +673,27 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <main className="main-content">
         {children}
       </main>
+
+      {/* GLOBAL IN-APP FREE CALL RECEIVER FOR ADMIN */}
+      <IncomingCallModal currentUserId="admin" currentUserName="Emma (Admin Dispatch)" />
+
+      {/* BIOMETRIC AUTHENTICATION & ENROLLMENT MODAL */}
+      <BiometricModal
+        isOpen={showBiometricModal}
+        onClose={() => {
+          setShowBiometricModal(false);
+          setEnrolledBio(getRegisteredBiometric());
+        }}
+        mode={enrolledBio ? 'manage' : 'enroll'}
+        userToEnroll={{
+          role: 'admin',
+          email: 'admin@byt.com',
+          name: 'Emma',
+        }}
+        onSuccess={(user) => {
+          setEnrolledBio(user);
+        }}
+      />
 
       {/* CHANGE LOGO MODAL */}
       {showLogoModal && (
@@ -679,9 +815,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           position: sticky;
           top: 0;
           height: 60px;
-          background: rgba(10, 22, 40, 0.85);
+          background: rgba(255, 255, 255, 0.92);
           backdrop-filter: blur(20px);
           border-bottom: 1px solid var(--color-border);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
           padding: 0 var(--space-xl);
           display: flex;
           align-items: center;

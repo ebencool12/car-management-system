@@ -9,42 +9,34 @@ PORT=3000
 
 echo "🚀 Starting BYT Fleet Management Platform..."
 
-# 1. Check if already running via PID
-if [ -f "$PID_FILE" ]; then
-  OLD_PID=$(cat "$PID_FILE")
-  if ps -p "$OLD_PID" > /dev/null 2>&1; then
-    echo "⚠️  BYT Fleet is already running (PID $OLD_PID)."
-    echo "🌐 Access it at: http://localhost:$PORT"
-    exit 0
-  else
-    rm -f "$PID_FILE"
-  fi
+# 1. Check if server is already running and responding on port 3000
+if lsof -i :$PORT >/dev/null 2>&1; then
+  CURRENT_PID=$(lsof -ti:$PORT 2>/dev/null | head -n 1)
+  echo "⚠️  BYT Fleet is already running (PID $CURRENT_PID)."
+  echo "🌐 Access it at: http://localhost:$PORT"
+  exit 0
 fi
 
-# 2. Check if port 3000 is occupied
-OCCUPYING_PID=$(lsof -ti:$PORT 2>/dev/null)
-if [ -n "$OCCUPYING_PID" ]; then
-  echo "⚠️  Port $PORT is already in use by process $OCCUPYING_PID. Stopping it..."
-  kill -15 $OCCUPYING_PID 2>/dev/null || kill -9 $OCCUPYING_PID 2>/dev/null
-  sleep 1
-fi
+# Clean up any stale PID file
+rm -f "$PID_FILE"
 
-# 3. Check if node_modules exists
+# 2. Check if node_modules exists
 if [ ! -d "node_modules" ]; then
   echo "📦 Installing dependencies..."
   npm install
 fi
 
-# 4. Check if SQLite database exists
+# 3. Check if SQLite database exists
 if [ ! -f "dev.db" ]; then
   echo "🗄️  Database not found. Seeding initial data..."
   npx tsx prisma/seed.ts
 fi
 
-# 5. Start Next.js server in background
+# 4. Start Next.js server in background
 echo "⚡ Launching development server..."
-nohup npm run dev > server.log 2>&1 &
+nohup ./node_modules/.bin/next dev -p $PORT </dev/null > server.log 2>&1 &
 APP_PID=$!
+disown $APP_PID 2>/dev/null || true
 echo $APP_PID > "$PID_FILE"
 
 # 6. Wait for server to become responsive
