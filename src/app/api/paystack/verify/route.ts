@@ -93,7 +93,7 @@ export async function POST(req: Request) {
       };
       demoSales.unshift(newSale);
 
-      // Persist to Prisma Database
+      // Persist to Prisma Database & Supabase PostgreSQL
       try {
         const dbDriver = await prisma.driver.findFirst({
           where: {
@@ -132,7 +132,46 @@ export async function POST(req: Request) {
           });
         }
       } catch (dbErr) {
-        console.warn('[PAYSTACK VERIFY] Database write skipped or warned:', dbErr);
+        console.warn('[PAYSTACK VERIFY] Prisma write skipped or warned:', dbErr);
+      }
+
+      // Persist to Supabase PostgreSQL
+      try {
+        const { createSupabaseServerClient } = await import('@/lib/supabase');
+        const supabase = createSupabaseServerClient();
+        
+        // Find driver in Supabase
+        const { data: sbDrivers } = await supabase
+          .from('drivers')
+          .select('id, balance')
+          .or(`id.eq.${targetDriverId},name.ilike.%${targetDriverName}%`)
+          .limit(1);
+
+        if (sbDrivers && sbDrivers.length > 0) {
+          const sbDriver = sbDrivers[0];
+          const newBal = Math.max(0, (Number(sbDriver.balance) || 0) - amountGhs);
+          await supabase.from('drivers').update({ balance: newBal }).eq('id', sbDriver.id);
+
+          await supabase.from('sales_records').insert({
+            driver_id: sbDriver.id,
+            driver_name: driver.name,
+            amount: amountGhs,
+            payment_method: `PAYSTACK_${data.channel?.toUpperCase() || 'ONLINE'}`,
+            paystack_reference: reference,
+            confirmation_status: 'CONFIRMED',
+            week_label: '2026-W38',
+          });
+
+          await supabase.from('ledger_entries').insert({
+            driver_id: sbDriver.id,
+            amount: amountGhs,
+            direction: 'DEBIT',
+            description: `Paystack Verified Remittance (Ref: ${reference})`,
+            reference: reference,
+          });
+        }
+      } catch (sbErr) {
+        console.warn('[PAYSTACK VERIFY] Supabase write skipped or warned:', sbErr);
       }
     }
 

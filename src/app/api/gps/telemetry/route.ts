@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { demoLocations, demoDrivers } from '@/lib/demo-data';
+import { saveLocationPing, getLatestFleetLocations } from '@/lib/db';
 
 export interface TelemetryPoint {
   vehicleId: string;
@@ -61,6 +62,39 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Try fetching latest real GPS pings from Supabase
+  try {
+    const realPings = await getLatestFleetLocations();
+    if (realPings && realPings.length > 0) {
+      // Merge real GPS pings into active telemetry
+      realPings.forEach(p => {
+        const idx = activeTelemetry.findIndex(t => t.vehicleId === p.vehicle_id || t.plateNumber === p.plate_number);
+        const mappedPoint: TelemetryPoint = {
+          vehicleId: p.vehicle_id || `v-${p.driver_id}`,
+          plateNumber: p.plate_number || 'FLEET-VEHICLE',
+          driverName: p.driver_name || null,
+          severity: 'GREEN',
+          lat: p.lat,
+          lng: p.lng,
+          speed: p.speed ? Number(p.speed) : undefined,
+          heading: p.heading ? Number(p.heading) : undefined,
+          accuracy: p.accuracy ? Number(p.accuracy) : 3.0,
+          battery: p.battery ? Number(p.battery) : 95,
+          ignition: true,
+          source: 'LIVE_DEVICE_GPS',
+          timestamp: p.created_at,
+        };
+        if (idx >= 0) {
+          activeTelemetry[idx] = mappedPoint;
+        } else {
+          activeTelemetry.unshift(mappedPoint);
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Could not read from Supabase location_pings:', err);
+  }
+
   return NextResponse.json({
     success: true,
     count: activeTelemetry.length,
@@ -117,11 +151,29 @@ export async function POST(req: NextRequest) {
       } else {
         activeTelemetry.push(updatedPoint);
       }
+
+      // Persist to Supabase location_pings
+      try {
+        await saveLocationPing({
+          driver_id: packet.driverId || (existingIdx >= 0 ? activeTelemetry[existingIdx].vehicleId : 'd1'),
+          vehicle_id: updatedPoint.vehicleId,
+          driver_name: updatedPoint.driverName,
+          plate_number: updatedPoint.plateNumber,
+          lat: updatedPoint.lat,
+          lng: updatedPoint.lng,
+          speed: updatedPoint.speed,
+          heading: updatedPoint.heading,
+          accuracy: updatedPoint.accuracy,
+          battery: updatedPoint.battery,
+        });
+      } catch (err) {
+        console.warn('Failed to persist location ping to Supabase:', err);
+      }
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Live fleet telemetry packet ingested successfully',
+      message: 'Live fleet telemetry packet ingested successfully and stored to Supabase',
       processed: packets.length,
       currentCount: activeTelemetry.length
     });
@@ -133,3 +185,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

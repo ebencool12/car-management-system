@@ -7,6 +7,7 @@ import BiometricModal from '@/components/BiometricModal';
 import IncomingCallModal from '@/components/IncomingCallModal';
 import { getRegisteredBiometric, EnrolledBiometricUser } from '@/lib/biometrics';
 import { getUnreadMessageCount, subscribeToChatMessages } from '@/lib/communication';
+import { useDriverLocation } from '@/hooks/useDriverLocation';
 
 const navItems = [
   { label: 'Home', href: '/driver', icon: '🏠' },
@@ -25,6 +26,13 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
   const [enrolledBio, setEnrolledBio] = useState<EnrolledBiometricUser | null>(null);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [driverUser, setDriverUser] = useState<{ id: string; name: string }>({ id: '1', name: 'Kwame Asante' });
+
+  // Stream real phone GPS coordinates to fleet admin in real-time
+  useDriverLocation({
+    driverId: driverUser.id,
+    driverName: driverUser.name,
+    enabled: true,
+  });
 
   useEffect(() => {
     setEnrolledBio(getRegisteredBiometric());

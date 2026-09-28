@@ -197,6 +197,25 @@ export default function ApplyPage() {
     };
 
     saveStoredApplications([newApp, ...applications]);
+    
+    // Persist to Supabase database
+    fetch('/api/applications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: newApp.fullName,
+        phone: newApp.phone,
+        email: newApp.email,
+        reason: newApp.reason,
+        licenseNumber: newApp.licenseNumber,
+        ghanaCardNumber: newApp.ghanaCardNumber,
+        experienceYears: newApp.experienceYears,
+        licenseUrl: newApp.licenseUrl,
+        ghanaCardUrl: newApp.ghanaCardUrl,
+        selfieUrl: newApp.selfieUrl,
+      }),
+    }).catch(err => console.warn('Supabase application sync error:', err));
+
     stopCamera();
     setSubmitted(true);
   };

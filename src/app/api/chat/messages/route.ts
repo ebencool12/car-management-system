@@ -89,8 +89,39 @@ function saveDiskMessages(messages: ChatMessage[]) {
 }
 
 export async function GET() {
+  // 1. Try fetching from Supabase first
+  try {
+    const { createSupabaseServerClient } = await import('@/lib/supabase');
+    const supabase = createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (!error && data && data.length > 0) {
+      // Map to ChatMessage format
+      const mapped: ChatMessage[] = data.map(m => ({
+        id: m.id,
+        conversationId: m.conversation_id,
+        senderId: m.sender_id,
+        senderName: m.sender_name || (m.sender_type === 'admin' ? 'Admin Dispatch' : 'Driver'),
+        senderRole: m.sender_type as 'driver' | 'admin',
+        recipientId: m.sender_type === 'admin' ? m.conversation_id.replace('driver_', '').replace('_admin', '') : 'admin',
+        content: m.content,
+        createdAt: m.created_at,
+        read: m.is_read,
+        mediaUrl: m.media_url || undefined,
+        mediaType: m.media_type as any,
+      }));
+      return NextResponse.json({ success: true, messages: mapped, source: 'supabase' });
+    }
+  } catch (err) {
+    console.warn('Supabase chat messages fetch error:', err);
+  }
+
+  // 2. Fallback to disk/memory
   const messages = getDiskMessages();
-  return NextResponse.json({ success: true, messages });
+  return NextResponse.json({ success: true, messages, source: 'disk' });
 }
 
 export async function POST(req: NextRequest) {
@@ -120,6 +151,43 @@ export async function POST(req: NextRequest) {
     merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     saveDiskMessages(merged);
+
+    // Persist new message to Supabase PostgreSQL
+    try {
+      const { createSupabaseServerClient } = await import('@/lib/supabase');
+      const supabase = createSupabaseServerClient();
+      const msgToSave: ChatMessage = body.message || (Array.isArray(body.messages) ? body.messages[body.messages.length - 1] : null);
+
+      if (msgToSave && msgToSave.content) {
+        // Ensure conversation exists
+        const driverId = msgToSave.conversationId?.replace('driver_', '').replace('_admin', '') || 'd1';
+        await supabase
+          .from('chat_conversations')
+          .upsert({
+            id: msgToSave.conversationId || `driver_${driverId}_admin`,
+            driver_id: driverId,
+            driver_name: msgToSave.senderRole === 'driver' ? msgToSave.senderName : 'Fleet Driver',
+            last_message: msgToSave.content,
+            last_message_at: msgToSave.createdAt || new Date().toISOString(),
+          }, { onConflict: 'id' });
+
+        await supabase.from('chat_messages').insert({
+          id: msgToSave.id,
+          conversation_id: msgToSave.conversationId || `driver_${driverId}_admin`,
+          sender_id: msgToSave.senderId,
+          sender_name: msgToSave.senderName,
+          sender_type: msgToSave.senderRole,
+          content: msgToSave.content,
+          media_url: msgToSave.mediaUrl || null,
+          media_type: msgToSave.mediaType || null,
+          is_read: Boolean(msgToSave.read),
+          created_at: msgToSave.createdAt || new Date().toISOString(),
+        });
+      }
+    } catch (sbErr) {
+      console.warn('Supabase chat message write warning:', sbErr);
+    }
+
     return NextResponse.json({ success: true, messages: merged });
   } catch (err) {
     console.error('Error saving chat message:', err);
@@ -151,8 +219,24 @@ export async function PATCH(req: NextRequest) {
     if (changed) {
       saveDiskMessages(updated);
     }
+
+    // Update in Supabase
+    try {
+      const { createSupabaseServerClient } = await import('@/lib/supabase');
+      const supabase = createSupabaseServerClient();
+      if (conversationId) {
+        await supabase
+          .from('chat_messages')
+          .update({ is_read: true })
+          .eq('conversation_id', conversationId);
+      }
+    } catch (sbErr) {
+      console.warn('Supabase patch read status warning:', sbErr);
+    }
+
     return NextResponse.json({ success: true, messages: updated });
   } catch {
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }
+
