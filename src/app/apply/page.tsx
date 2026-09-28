@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Application,
@@ -11,6 +11,7 @@ import {
 export default function ApplyPage() {
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Form details
   const [formData, setFormData] = useState({
@@ -35,25 +36,26 @@ export default function ApplyPage() {
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const fallbackSelfieInputRef = useRef<HTMLInputElement>(null);
 
-  // Stop camera when component unmounts or step changes
-  useEffect(() => {
-    if (step === 3 && !selfieUrl) {
-      startCamera();
-    } else {
-      stopCamera();
+  // Completeness tracking per step
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
     }
-    return () => {
-      stopCamera();
-    };
-  }, [step, selfieUrl]);
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  }, []);
 
-  const startCamera = async () => {
+  const startCamera = useCallback(async () => {
     setCameraError(null);
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setCameraError('Camera access not supported by this browser. You may upload a photo below.');
+        setCameraError('Camera access is not supported by this browser. Please use a device with a camera to complete verification.');
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -68,18 +70,31 @@ export default function ApplyPage() {
       setCameraActive(true);
     } catch (err: unknown) {
       console.warn('Camera access denied or unavailable', err);
-      setCameraError('Unable to access camera. Please allow camera permissions or upload a portrait photo below.');
+      setCameraError('Unable to access camera. Please allow camera permissions in your browser settings to proceed with live verification.');
       setCameraActive(false);
     }
-  };
+  }, []);
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
+  // Start camera when entering step 3 without a selfie; stop on leave or selfie captured
+  useEffect(() => {
+    if (step === 3 && !selfieUrl) {
+      startCamera();
+    } else {
+      stopCamera();
     }
-    setCameraActive(false);
-  };
+    return () => {
+      stopCamera();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, selfieUrl]);
+
+  // Cleanup camera on component unmount
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const captureSelfie = () => {
     if (!videoRef.current) return;
@@ -101,10 +116,10 @@ export default function ApplyPage() {
 
   const retakeSelfie = () => {
     setSelfieUrl(null);
-    startCamera();
+    // Camera will start via useEffect
   };
 
-  const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'license' | 'ghanaCard' | 'selfie') => {
+  const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'license' | 'ghanaCard') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -113,14 +128,38 @@ export default function ApplyPage() {
       const result = reader.result as string;
       if (target === 'license') setLicenseUrl(result);
       if (target === 'ghanaCard') setGhanaCardUrl(result);
-      if (target === 'selfie') setSelfieUrl(result);
     };
     reader.readAsDataURL(file);
   };
 
-  // Step advancement with Soft Validation (allows user to move forward even if incomplete)
+  // Validation per step
+  const validateStep = (s: number): string[] => {
+    const errors: string[] = [];
+    if (s === 1) {
+      if (!formData.fullName.trim()) errors.push('Full name is required.');
+      if (!formData.phone.trim()) errors.push('Phone number is required.');
+      if (!formData.reason.trim()) errors.push('Please provide a reason for wanting to drive with BYT.');
+      if (formData.experienceYears < 1) errors.push('Driving experience must be at least 1 year.');
+    }
+    if (s === 2) {
+      if (!licenseUrl) errors.push("Driver's license document is required.");
+      if (!formData.licenseNumber.trim()) errors.push('License number is required.');
+      if (!ghanaCardUrl) errors.push('Ghana Card document is required.');
+      if (!formData.ghanaCardNumber.trim()) errors.push('Ghana Card PIN is required.');
+    }
+    if (s === 3) {
+      if (!selfieUrl) errors.push('A live selfie capture is required for identity verification.');
+    }
+    return errors;
+  };
+
   const handleNextStep = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    const errors = validateStep(step);
+    setValidationErrors(errors);
+    if (errors.length > 0) return;
+
+    setCompletedSteps(prev => new Set(prev).add(step));
     if (step < 3) {
       setStep(step + 1);
     } else {
@@ -129,13 +168,24 @@ export default function ApplyPage() {
   };
 
   const handleFinalSubmit = () => {
+    // Final comprehensive validation
+    const allErrors = [
+      ...validateStep(1),
+      ...validateStep(2),
+      ...validateStep(3),
+    ];
+    if (allErrors.length > 0) {
+      setValidationErrors(allErrors);
+      return;
+    }
+
     const applications = getStoredApplications();
     const newApp: Application = {
       id: `app-${Date.now()}`,
-      fullName: formData.fullName.trim() || 'New Applicant',
-      phone: formData.phone.trim() || '024-000-0000',
-      email: formData.email.trim() || 'applicant@fleet.byt.com',
-      reason: formData.reason.trim() || 'Excited to drive with BYT Fleet.',
+      fullName: formData.fullName.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim() || '',
+      reason: formData.reason.trim(),
       status: 'PENDING',
       createdAt: new Date().toISOString().split('T')[0],
       licenseNumber: formData.licenseNumber || undefined,
@@ -147,138 +197,164 @@ export default function ApplyPage() {
     };
 
     saveStoredApplications([newApp, ...applications]);
+    stopCamera();
     setSubmitted(true);
   };
 
   if (submitted) {
     return (
       <div className="apply-page">
-        <div className="login-logo" style={{ marginBottom: 'var(--space-2xl)' }}>
-          <div className="logo-icon">BYT</div>
-          <h1>BYT Fleet Management</h1>
-          <p className="motto">Your Fleet. Your Control. Your Trust.</p>
-        </div>
-        <div className="form-card animate-in" style={{ textAlign: 'center', padding: 'var(--space-3xl) var(--space-xl)' }}>
-          <div style={{ fontSize: '4rem', marginBottom: 'var(--space-lg)' }}>🎉</div>
-          <h2 style={{ marginBottom: 'var(--space-md)' }}>Application Submitted!</h2>
-          <p className="text-muted" style={{ maxWidth: 420, margin: '0 auto', lineHeight: 1.7 }}>
-            Thank you, <strong>{formData.fullName || 'Applicant'}</strong>. Your application, documents, and identity verification have been submitted directly to the BYT Operations Admin desk.
-          </p>
-          <div style={{ margin: 'var(--space-lg) auto', maxWidth: 360, padding: 'var(--space-md)', background: 'var(--color-bg-input)', borderRadius: 'var(--radius-md)', textAlign: 'left', fontSize: '0.85rem' }}>
-            <div><strong>Phone Contact:</strong> {formData.phone || 'Provided on file'}</div>
-            <div><strong>Documents Attached:</strong> {licenseUrl ? '✓ License ' : ''}{ghanaCardUrl ? '✓ Ghana Card ' : ''}{selfieUrl ? '✓ Live Selfie' : ''}</div>
-            <div style={{ marginTop: '4px', color: 'var(--color-text-muted)' }}>Status: <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>PENDING ADMIN APPROVAL</span></div>
+        <div className="apply-header">
+          <div className="apply-brand">
+            <div className="apply-logo-icon">BYT</div>
+            <div>
+              <h1 className="apply-title">BYT Fleet Management</h1>
+              <p className="apply-motto">Your Fleet. Your Control. Your Trust.</p>
+            </div>
           </div>
-          <p className="text-sm text-muted" style={{ marginTop: 'var(--space-md)' }}>
-            You will be contacted via phone or SMS once reviewed.
+        </div>
+        <div className="apply-card apply-success-card">
+          <div className="apply-success-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <h2 className="apply-success-title">Application Submitted Successfully</h2>
+          <p className="apply-success-text">
+            Thank you, <strong>{formData.fullName}</strong>. Your application, documents, and live identity verification have been submitted to the BYT Operations team for review.
           </p>
-          <Link href="/" className="btn btn-secondary" style={{ marginTop: 'var(--space-xl)' }}>
-            ← Back to Login
+          <div className="apply-success-summary">
+            <div className="apply-summary-row">
+              <span className="apply-summary-label">Applicant</span>
+              <span className="apply-summary-value">{formData.fullName}</span>
+            </div>
+            <div className="apply-summary-row">
+              <span className="apply-summary-label">Phone</span>
+              <span className="apply-summary-value font-mono">{formData.phone}</span>
+            </div>
+            <div className="apply-summary-row">
+              <span className="apply-summary-label">Documents</span>
+              <span className="apply-summary-value">
+                {licenseUrl ? '✓ License ' : ''}{ghanaCardUrl ? '✓ Ghana Card ' : ''}{selfieUrl ? '✓ Live Selfie' : ''}
+              </span>
+            </div>
+            <div className="apply-summary-row">
+              <span className="apply-summary-label">Status</span>
+              <span className="apply-status-badge">PENDING REVIEW</span>
+            </div>
+          </div>
+          <p className="apply-success-note">
+            You will be contacted via phone or SMS once your application has been reviewed.
+          </p>
+          <Link href="/" className="apply-btn-back">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+            Back to Login
           </Link>
         </div>
       </div>
     );
   }
 
+  const stepLabels = ['Personal Info', 'Documents', 'Verification'];
+
   return (
     <div className="apply-page">
-      {/* Header */}
-      <div className="login-logo" style={{ marginBottom: 'var(--space-2xl)' }}>
-        <div className="logo-icon">BYT</div>
-        <h1>Drive for BYT</h1>
-        <p className="motto">Join our trusted fleet of professional drivers</p>
+      {/* Enterprise Header */}
+      <div className="apply-header">
+        <div className="apply-brand">
+          <div className="apply-logo-icon">BYT</div>
+          <div>
+            <h1 className="apply-title">Driver Application</h1>
+            <p className="apply-motto">Join the BYT professional fleet network</p>
+          </div>
+        </div>
       </div>
 
-      {/* Step Progress indicator */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-xl)', justifyContent: 'center' }}>
+      {/* Step Progress — cannot click to skip */}
+      <div className="apply-stepper">
         {[1, 2, 3].map(s => (
-          <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <button
-              type="button"
-              onClick={() => setStep(s)}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                background: step >= s ? 'linear-gradient(135deg, var(--byt-gold), var(--byt-gold-dark))' : 'var(--color-bg-input)',
-                color: step >= s ? 'var(--color-text-inverse)' : 'var(--color-text-muted)',
-                border: step >= s ? 'none' : '1px solid var(--color-border)',
-                cursor: 'pointer',
-                transition: 'all var(--transition-base)',
-              }}
-              title={`Go to Step ${s}`}
-            >
-              {step > s ? '✓' : s}
-            </button>
-            {s < 3 && (
-              <div
-                style={{
-                  width: 44,
-                  height: 2,
-                  background: step > s ? 'var(--byt-gold)' : 'var(--color-border)',
-                  transition: 'background var(--transition-base)',
-                }}
-              />
-            )}
+          <div key={s} className="apply-step-wrapper">
+            <div className={`apply-step-indicator ${step === s ? 'active' : ''} ${completedSteps.has(s) ? 'completed' : ''}`}>
+              {completedSteps.has(s) ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : s}
+            </div>
+            <span className={`apply-step-label ${step === s ? 'active' : ''}`}>{stepLabels[s - 1]}</span>
+            {s < 3 && <div className={`apply-step-connector ${step > s ? 'active' : ''}`} />}
           </div>
         ))}
       </div>
 
-      <div className="form-card animate-in">
+      {/* Validation Errors */}
+      {validationErrors.length > 0 && (
+        <div className="apply-validation-errors">
+          <div className="apply-validation-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>Please fix the following to continue:</span>
+          </div>
+          <ul className="apply-validation-list">
+            {validationErrors.map((err, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="apply-card">
         <form onSubmit={handleNextStep}>
           {/* ── STEP 1: PERSONAL INFORMATION ── */}
           {step === 1 && (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
-                <div>
-                  <span className="eyebrow" style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.72rem', color: 'var(--byt-gold)', fontWeight: 700 }}>
-                    Phase 1 of 3
-                  </span>
-                  <h3 style={{ marginTop: '2px' }}>Personal Information</h3>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setStep(2)}
-                  style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}
-                >
-                  Skip to Docs →
-                </button>
+              <div className="apply-section-header">
+                <div className="apply-phase-indicator">Phase 1 of 3</div>
+                <h3 className="apply-section-title">Personal Information</h3>
+                <p className="apply-section-desc">Tell us about yourself and your driving background.</p>
               </div>
 
-              <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
-                <label className="form-label" htmlFor="apply-name">Full Name</label>
+              <div className="apply-form-group">
+                <label className="apply-form-label" htmlFor="apply-name">
+                  Full Name <span className="apply-required">*</span>
+                </label>
                 <input
                   id="apply-name"
-                  className="form-input"
+                  className="apply-form-input"
                   placeholder="e.g. Kwame Mensah"
                   value={formData.fullName}
                   onChange={e => setFormData({ ...formData, fullName: e.target.value })}
+                  autoFocus
                 />
               </div>
 
-              <div className="grid-2" style={{ marginBottom: 'var(--space-md)' }}>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="apply-phone">Phone Number</label>
+              <div className="apply-form-row">
+                <div className="apply-form-group">
+                  <label className="apply-form-label" htmlFor="apply-phone">
+                    Phone Number <span className="apply-required">*</span>
+                  </label>
                   <input
                     id="apply-phone"
-                    className="form-input font-mono"
+                    className="apply-form-input font-mono"
                     type="tel"
                     placeholder="024-XXX-XXXX"
                     value={formData.phone}
                     onChange={e => setFormData({ ...formData, phone: e.target.value })}
                   />
                 </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="apply-experience">Driving Experience (Years)</label>
+                <div className="apply-form-group">
+                  <label className="apply-form-label" htmlFor="apply-experience">
+                    Experience (Years) <span className="apply-required">*</span>
+                  </label>
                   <input
                     id="apply-experience"
-                    className="form-input font-mono"
+                    className="apply-form-input font-mono"
                     type="number"
                     min="1"
                     value={formData.experienceYears}
@@ -287,11 +363,13 @@ export default function ApplyPage() {
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
-                <label className="form-label" htmlFor="apply-email">Email Address (Optional)</label>
+              <div className="apply-form-group">
+                <label className="apply-form-label" htmlFor="apply-email">
+                  Email Address <span className="apply-optional">(Optional)</span>
+                </label>
                 <input
                   id="apply-email"
-                  className="form-input"
+                  className="apply-form-input"
                   type="email"
                   placeholder="you@email.com"
                   value={formData.email}
@@ -299,11 +377,13 @@ export default function ApplyPage() {
                 />
               </div>
 
-              <div className="form-group" style={{ marginBottom: 'var(--space-lg)' }}>
-                <label className="form-label" htmlFor="apply-reason">Why do you want to drive with BYT?</label>
+              <div className="apply-form-group">
+                <label className="apply-form-label" htmlFor="apply-reason">
+                  Why do you want to drive with BYT? <span className="apply-required">*</span>
+                </label>
                 <textarea
                   id="apply-reason"
-                  className="form-textarea"
+                  className="apply-form-textarea"
                   rows={3}
                   placeholder="Tell us about your driving background, routes you know best in Accra, and vehicle handling experience..."
                   value={formData.reason}
@@ -316,28 +396,19 @@ export default function ApplyPage() {
           {/* ── STEP 2: DOCUMENT UPLOADS ── */}
           {step === 2 && (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
-                <div>
-                  <span className="eyebrow" style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.72rem', color: 'var(--byt-gold)', fontWeight: 700 }}>
-                    Phase 2 of 3
-                  </span>
-                  <h3 style={{ marginTop: '2px' }}>Document Uploads</h3>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setStep(3)}
-                  style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}
-                >
-                  Skip to Selfie →
-                </button>
+              <div className="apply-section-header">
+                <div className="apply-phase-indicator">Phase 2 of 3</div>
+                <h3 className="apply-section-title">Document Uploads</h3>
+                <p className="apply-section-desc">Upload clear photos or scans of your official documents.</p>
               </div>
 
               {/* Driver's License Upload */}
-              <div className="form-group" style={{ marginBottom: 'var(--space-lg)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <label className="form-label" style={{ margin: 0 }}>Driver&apos;s License (Photo / Scan)</label>
-                  <span className="text-xs text-muted">Class B or above</span>
+              <div className="apply-form-group" style={{ marginBottom: '1.5rem' }}>
+                <div className="apply-doc-header">
+                  <label className="apply-form-label" style={{ margin: 0 }}>
+                    Driver&apos;s License <span className="apply-required">*</span>
+                  </label>
+                  <span className="apply-doc-hint">Class B or above</span>
                 </div>
 
                 <input
@@ -349,45 +420,43 @@ export default function ApplyPage() {
                 />
 
                 <div
-                  className="upload-zone"
+                  className={`apply-upload-zone ${licenseUrl ? 'has-file' : ''}`}
                   onClick={() => licenseInputRef.current?.click()}
-                  style={{
-                    border: '2px dashed var(--color-border)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: 'var(--space-md)',
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    background: licenseUrl ? 'rgba(16, 185, 129, 0.05)' : 'var(--color-bg-input)',
-                  }}
                 >
                   {licenseUrl ? (
-                    <div>
-                      <img src={licenseUrl} alt="License preview" style={{ maxHeight: 130, borderRadius: 6, margin: '0 auto 8px' }} />
-                      <div className="text-xs text-green" style={{ fontWeight: 600 }}>✓ License Attached (Tap to replace)</div>
+                    <div className="apply-upload-preview">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={licenseUrl} alt="License preview" className="apply-upload-img" />
+                      <div className="apply-upload-success">✓ License Attached — Tap to replace</div>
                     </div>
                   ) : (
-                    <>
-                      <div style={{ fontSize: '2rem', marginBottom: '4px' }}>📄</div>
-                      <div className="font-semibold text-sm">Tap to upload Driver&apos;s License</div>
-                      <div className="text-xs text-muted">Clear photo of the front of your license</div>
-                    </>
+                    <div className="apply-upload-placeholder">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                      <div className="apply-upload-label">Tap to upload Driver&apos;s License</div>
+                      <div className="apply-upload-sublabel">Clear photo of the front of your license</div>
+                    </div>
                   )}
                 </div>
 
                 <input
-                  className="form-input font-mono"
-                  style={{ marginTop: 'var(--space-xs)', fontSize: '0.85rem' }}
-                  placeholder="License Number (e.g. GL-1982-XXXX)"
+                  className="apply-form-input font-mono"
+                  style={{ marginTop: '0.5rem' }}
+                  placeholder="License Number (e.g. GL-1982-XXXX) *"
                   value={formData.licenseNumber}
                   onChange={e => setFormData({ ...formData, licenseNumber: e.target.value })}
                 />
               </div>
 
               {/* Ghana Card Upload */}
-              <div className="form-group" style={{ marginBottom: 'var(--space-lg)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <label className="form-label" style={{ margin: 0 }}>Ghana Card (National ID)</label>
-                  <span className="text-xs text-muted">National Identification</span>
+              <div className="apply-form-group" style={{ marginBottom: '1.5rem' }}>
+                <div className="apply-doc-header">
+                  <label className="apply-form-label" style={{ margin: 0 }}>
+                    Ghana Card (National ID) <span className="apply-required">*</span>
+                  </label>
+                  <span className="apply-doc-hint">National Identification</span>
                 </div>
 
                 <input
@@ -399,236 +468,216 @@ export default function ApplyPage() {
                 />
 
                 <div
-                  className="upload-zone"
+                  className={`apply-upload-zone ${ghanaCardUrl ? 'has-file' : ''}`}
                   onClick={() => ghanaCardInputRef.current?.click()}
-                  style={{
-                    border: '2px dashed var(--color-border)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: 'var(--space-md)',
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    background: ghanaCardUrl ? 'rgba(16, 185, 129, 0.05)' : 'var(--color-bg-input)',
-                  }}
                 >
                   {ghanaCardUrl ? (
-                    <div>
-                      <img src={ghanaCardUrl} alt="Ghana Card preview" style={{ maxHeight: 130, borderRadius: 6, margin: '0 auto 8px' }} />
-                      <div className="text-xs text-green" style={{ fontWeight: 600 }}>✓ Ghana Card Attached (Tap to replace)</div>
+                    <div className="apply-upload-preview">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={ghanaCardUrl} alt="Ghana Card preview" className="apply-upload-img" />
+                      <div className="apply-upload-success">✓ Ghana Card Attached — Tap to replace</div>
                     </div>
                   ) : (
-                    <>
-                      <div style={{ fontSize: '2rem', marginBottom: '4px' }}>🆔</div>
-                      <div className="font-semibold text-sm">Tap to upload Ghana Card</div>
-                      <div className="text-xs text-muted">Clear photo of your Ghana Card ID</div>
-                    </>
+                    <div className="apply-upload-placeholder">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                      <div className="apply-upload-label">Tap to upload Ghana Card</div>
+                      <div className="apply-upload-sublabel">Clear photo of your Ghana Card ID</div>
+                    </div>
                   )}
                 </div>
 
                 <input
-                  className="form-input font-mono"
-                  style={{ marginTop: 'var(--space-xs)', fontSize: '0.85rem' }}
-                  placeholder="Ghana Card PIN (e.g. GHA-723849102-4)"
+                  className="apply-form-input font-mono"
+                  style={{ marginTop: '0.5rem' }}
+                  placeholder="Ghana Card PIN (e.g. GHA-723849102-4) *"
                   value={formData.ghanaCardNumber}
                   onChange={e => setFormData({ ...formData, ghanaCardNumber: e.target.value })}
                 />
               </div>
-
-              <div style={{ padding: 'var(--space-sm) var(--space-md)', background: 'var(--color-bg-input)', borderRadius: 'var(--radius-md)', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                💡 <em>Note:</em> You can move to the next phase even if your physical documents are not immediately on hand.
-              </div>
             </>
           )}
 
-          {/* ── STEP 3: LIVE SELFIE VERIFICATION ── */}
+          {/* ── STEP 3: LIVE SELFIE VERIFICATION (No file upload allowed) ── */}
           {step === 3 && (
             <>
-              <div style={{ marginBottom: 'var(--space-md)' }}>
-                <span className="eyebrow" style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.72rem', color: 'var(--byt-gold)', fontWeight: 700 }}>
-                  Phase 3 of 3
-                </span>
-                <h3 style={{ marginTop: '2px' }}>Live Selfie Identity Verification</h3>
-                <p className="text-xs text-muted" style={{ marginTop: '2px' }}>
-                  Position your face clearly within the frame to verify matching biometric identity.
+              <div className="apply-section-header">
+                <div className="apply-phase-indicator">Phase 3 of 3</div>
+                <h3 className="apply-section-title">Live Identity Verification</h3>
+                <p className="apply-section-desc">
+                  Position your face clearly within the frame. This must be a live capture — file uploads are not accepted for identity verification.
                 </p>
               </div>
 
-              {/* Camera Frame / Selfie Preview */}
-              <div
-                style={{
-                  width: '100%',
-                  aspectRatio: '4/3',
-                  background: '#091322',
-                  borderRadius: 'var(--radius-lg)',
-                  border: '2px solid var(--color-border)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  marginBottom: 'var(--space-md)',
-                }}
-              >
+              {/* Live Camera Frame */}
+              <div className="apply-camera-frame">
                 {selfieUrl ? (
-                  // Captured Photo Preview
-                  <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                    <img src={selfieUrl} alt="Captured Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 12,
-                        left: 12,
-                        background: 'rgba(16, 185, 129, 0.9)',
-                        color: 'white',
-                        padding: '3px 8px',
-                        borderRadius: 'var(--radius-full)',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                      }}
-                    >
-                      ✓ Live Selfie Verified
+                  <div className="apply-camera-captured">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={selfieUrl} alt="Captured Selfie" className="apply-camera-img" />
+                    <div className="apply-camera-verified-badge">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Live Selfie Captured
                     </div>
                   </div>
                 ) : (
-                  // Live Camera Stream
                   <>
                     <video
                       ref={videoRef}
                       playsInline
                       muted
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        transform: 'scaleX(-1)', // Mirror effect
-                      }}
+                      className="apply-camera-video"
                     />
 
                     {/* Face Oval Overlay Guide */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        width: 170,
-                        height: 220,
-                        border: '3px dashed var(--byt-gold)',
-                        borderRadius: '50%',
-                        boxShadow: '0 0 0 9999px rgba(10, 22, 40, 0.4)',
-                        pointerEvents: 'none',
-                      }}
-                    />
+                    <div className="apply-camera-oval" />
 
                     {cameraActive && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: 12,
-                          background: 'rgba(0, 0, 0, 0.65)',
-                          padding: '4px 10px',
-                          borderRadius: 'var(--radius-full)',
-                          fontSize: '0.75rem',
-                          color: '#fff',
-                        }}
-                      >
-                        ● Live Camera Stream Active
+                      <div className="apply-camera-live-indicator">
+                        <span className="apply-live-dot" />
+                        Live Camera Active
                       </div>
                     )}
 
                     {!cameraActive && cameraError && (
-                      <div style={{ position: 'absolute', padding: 'var(--space-md)', textAlign: 'center', color: 'var(--color-text-muted)', maxWidth: 280 }}>
-                        <div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div>
-                        <div className="text-xs" style={{ color: '#f87171', marginBottom: '8px' }}>{cameraError}</div>
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={startCamera}>
-                          Retry Camera
+                      <div className="apply-camera-error">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                          <circle cx="12" cy="13" r="4" />
+                        </svg>
+                        <div className="apply-camera-error-text">{cameraError}</div>
+                        <button type="button" className="apply-btn-retry" onClick={startCamera}>
+                          Retry Camera Access
                         </button>
+                      </div>
+                    )}
+
+                    {!cameraActive && !cameraError && (
+                      <div className="apply-camera-loading">
+                        <div className="apply-spinner" />
+                        <span>Initializing camera...</span>
                       </div>
                     )}
                   </>
                 )}
               </div>
 
-              {/* Camera Action Buttons */}
-              <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)', flexWrap: 'wrap' }}>
+              {/* Camera Action Buttons — LIVE CAPTURE ONLY */}
+              <div className="apply-camera-actions">
                 {selfieUrl ? (
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={retakeSelfie} style={{ flex: 1 }}>
-                    🔄 Retake Selfie
+                  <button type="button" className="apply-btn-retake" onClick={retakeSelfie}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="23 4 23 10 17 10" />
+                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                    </svg>
+                    Retake Live Selfie
                   </button>
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={captureSelfie}
-                      disabled={!cameraActive}
-                      style={{ flex: 2 }}
-                    >
-                      📸 Capture Live Selfie
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => fallbackSelfieInputRef.current?.click()}
-                      style={{ flex: 1, border: '1px solid var(--color-border)' }}
-                    >
-                      📁 Upload Photo
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    className="apply-btn-capture"
+                    onClick={captureSelfie}
+                    disabled={!cameraActive}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    Capture Live Selfie
+                  </button>
                 )}
               </div>
 
-              <input
-                ref={fallbackSelfieInputRef}
-                type="file"
-                accept="image/*"
-                capture="user"
-                style={{ display: 'none' }}
-                onChange={e => handleDocUpload(e, 'selfie')}
-              />
+              <div className="apply-live-notice">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <span>For security, identity verification requires a live camera capture. Image uploads are not accepted.</span>
+              </div>
 
-              {/* Summary card */}
-              <div style={{ padding: 'var(--space-md)', background: 'var(--color-bg-input)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-md)' }}>
-                <div className="text-xs text-muted" style={{ marginBottom: 'var(--space-sm)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
-                  Application Overview
+              {/* Application Summary */}
+              <div className="apply-summary-card">
+                <div className="apply-summary-header">Application Overview</div>
+                <div className="apply-summary-row">
+                  <span className="apply-summary-label">Applicant</span>
+                  <span className="apply-summary-value">{formData.fullName || '—'}</span>
                 </div>
-                <div className="text-sm"><strong>Applicant:</strong> {formData.fullName || '—'}</div>
-                <div className="text-sm"><strong>Phone:</strong> {formData.phone || '—'}</div>
-                <div className="text-sm"><strong>Experience:</strong> {formData.experienceYears} Years</div>
-                <div className="text-sm">
-                  <strong>Verification Proofs:</strong>{' '}
-                  <span style={{ color: licenseUrl ? '#10b981' : '#f59e0b' }}>{licenseUrl ? 'License ✓' : 'License (Pending)'}</span> •{' '}
-                  <span style={{ color: ghanaCardUrl ? '#10b981' : '#f59e0b' }}>{ghanaCardUrl ? 'Ghana Card ✓' : 'Ghana Card (Pending)'}</span> •{' '}
-                  <span style={{ color: selfieUrl ? '#10b981' : '#f59e0b' }}>{selfieUrl ? 'Live Selfie ✓' : 'Selfie (Pending)'}</span>
+                <div className="apply-summary-row">
+                  <span className="apply-summary-label">Phone</span>
+                  <span className="apply-summary-value font-mono">{formData.phone || '—'}</span>
+                </div>
+                <div className="apply-summary-row">
+                  <span className="apply-summary-label">Experience</span>
+                  <span className="apply-summary-value">{formData.experienceYears} Years</span>
+                </div>
+                <div className="apply-summary-row">
+                  <span className="apply-summary-label">Proofs</span>
+                  <span className="apply-summary-value">
+                    <span className={licenseUrl ? 'text-green' : 'text-amber'}>{licenseUrl ? '✓ License' : '○ License'}</span>
+                    {' · '}
+                    <span className={ghanaCardUrl ? 'text-green' : 'text-amber'}>{ghanaCardUrl ? '✓ Ghana Card' : '○ Ghana Card'}</span>
+                    {' · '}
+                    <span className={selfieUrl ? 'text-green' : 'text-amber'}>{selfieUrl ? '✓ Selfie' : '○ Selfie'}</span>
+                  </span>
                 </div>
               </div>
             </>
           )}
 
           {/* Navigation Controls */}
-          <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+          <div className="apply-nav-controls">
             {step > 1 && (
               <button
                 type="button"
-                className="btn btn-secondary"
-                onClick={() => setStep(step - 1)}
-                style={{ flex: 1 }}
+                className="apply-btn-back"
+                onClick={() => { setValidationErrors([]); setStep(step - 1); }}
               >
-                ← Back
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12" />
+                  <polyline points="12 19 5 12 12 5" />
+                </svg>
+                Back
               </button>
             )}
             <button
               type="submit"
-              className="btn btn-primary btn-lg"
-              style={{ flex: 2 }}
+              className="apply-btn-next"
             >
-              {step < 3 ? 'Continue to Next Phase →' : '🚀 Complete & Submit Application'}
+              {step < 3 ? (
+                <>
+                  Continue
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Submit Application
+                </>
+              )}
             </button>
           </div>
         </form>
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: 'var(--space-xl)' }}>
-        <Link href="/" className="text-sm text-muted">
+      <div className="apply-footer">
+        <Link href="/" className="apply-footer-link">
           Already have an account? Sign in →
         </Link>
       </div>
+
+      <style jsx>{`
+        .text-green { color: #16a34a; }
+        .text-amber { color: #d97706; }
+      `}</style>
     </div>
   );
 }

@@ -447,7 +447,7 @@ export default function RealGpsMap({
 
       // Helper to generate Google Maps vehicle popup HTML
       const getVehiclePopupContent = (v: GpsVehiclePoint) => `
-        <div style="font-family:Inter,system-ui,sans-serif; min-width: 230px; padding: 2px;">
+        <div style="font-family:'Plus Jakarta Sans',system-ui,sans-serif; min-width: 230px; padding: 2px;">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
             <strong style="font-size: 13px; color: #0f172a; font-family: monospace;">🚗 ${v.plateNumber}</strong>
             <span style="font-size: 10px; font-weight: 700; color: ${color};">${speed} km/h</span>

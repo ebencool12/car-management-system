@@ -15,11 +15,31 @@ import {
   MaintenanceHistory,
   Driver,
   getStoredDrivers,
+  getStoredVehicles,
+  saveStoredVehicles,
   getStoredMaintenanceSchedules,
   saveStoredMaintenanceSchedules,
   getStoredMaintenanceHistory,
   saveStoredMaintenanceHistory,
 } from '@/lib/demo-data';
+
+export function getVehicleDefaultImage(make?: string, model?: string): string {
+  const mk = (make || '').toLowerCase();
+  const md = (model || '').toLowerCase();
+  if (mk.includes('toyota')) {
+    if (md.includes('corolla')) return 'https://images.unsplash.com/photo-1623869675781-80aa31012a5a?w=800&auto=format&fit=crop&q=80';
+    return 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=800&auto=format&fit=crop&q=80';
+  }
+  if (mk.includes('hyundai')) {
+    if (md.includes('elantra')) return 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&auto=format&fit=crop&q=80';
+    return 'https://images.unsplash.com/photo-1550355291-bbee04a92027?w=800&auto=format&fit=crop&q=80';
+  }
+  if (mk.includes('kia')) {
+    if (md.includes('picanto')) return 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=800&auto=format&fit=crop&q=80';
+    return 'https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?w=800&auto=format&fit=crop&q=80';
+  }
+  return 'https://images.unsplash.com/photo-1623869675781-80aa31012a5a?w=800&auto=format&fit=crop&q=80';
+}
 
 export default function FleetPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>(demoVehicles);
@@ -31,6 +51,8 @@ export default function FleetPage() {
   const loadData = () => {
     const currentDrivers = getStoredDrivers();
     setDrivers(currentDrivers);
+    const currentVehicles = getStoredVehicles();
+    setVehicles(currentVehicles);
     const currentSchedules = getStoredMaintenanceSchedules();
     const currentHistory = getStoredMaintenanceHistory();
 
@@ -76,10 +98,12 @@ export default function FleetPage() {
     const handleUpdate = () => loadData();
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('byt-drivers-updated', handleUpdate);
+    window.addEventListener('byt-vehicles-updated', handleUpdate);
     window.addEventListener('byt-maintenance-updated', handleUpdate);
     return () => {
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('byt-drivers-updated', handleUpdate);
+      window.removeEventListener('byt-vehicles-updated', handleUpdate);
       window.removeEventListener('byt-maintenance-updated', handleUpdate);
     };
   }, []);
@@ -277,7 +301,10 @@ export default function FleetPage() {
       images: newVehicleImages
     };
 
-    setVehicles(prev => [newVeh, ...prev]);
+    const currentVehs = getStoredVehicles();
+    const updated = [newVeh, ...currentVehs];
+    saveStoredVehicles(updated);
+    setVehicles(updated);
     setShowAddModal(false);
     // Reset
     setNewPlate('');
@@ -368,7 +395,7 @@ export default function FleetPage() {
         <div className="grid-4 animate-in">
           {filtered.map(vehicle => {
             const hasImages = vehicle.images && vehicle.images.length > 0;
-            const primaryImage = hasImages ? vehicle.images![0] : null;
+            const primaryImage = hasImages ? vehicle.images![0] : getVehicleDefaultImage(vehicle.make, vehicle.model);
 
             return (
               <div key={vehicle.id} className="card" style={{ position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -384,22 +411,17 @@ export default function FleetPage() {
                 <div style={{
                   position: 'relative',
                   width: '100%',
-                  height: 150,
+                  height: 155,
                   backgroundColor: 'var(--color-bg-input)',
-                  backgroundImage: primaryImage ? `url(${primaryImage})` : 'none',
+                  backgroundImage: `url(${primaryImage})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  borderBottom: '1px solid var(--color-border)'
-                }}>
-                  {!primaryImage && (
-                    <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
-                      <div style={{ fontSize: '2rem', marginBottom: '4px' }}>🚗</div>
-                      <div>No photo uploaded</div>
-                    </div>
-                  )}
+                  borderBottom: '1px solid var(--color-border)',
+                  cursor: 'pointer'
+                }} onClick={() => handleOpenPhotos(vehicle)}>
 
                   {/* Photo count badge */}
                   <button
@@ -567,18 +589,19 @@ export default function FleetPage() {
             </thead>
             <tbody>
               {filtered.map(vehicle => {
-                const primaryImage = vehicle.images && vehicle.images.length > 0 ? vehicle.images[0] : null;
+                const hasImages = vehicle.images && vehicle.images.length > 0;
+                const primaryImage = hasImages ? vehicle.images![0] : getVehicleDefaultImage(vehicle.make, vehicle.model);
                 return (
                   <tr key={vehicle.id}>
                     <td>
                       <div
                         onClick={() => handleOpenPhotos(vehicle)}
                         style={{
-                          width: 48,
-                          height: 36,
+                          width: 52,
+                          height: 38,
                           borderRadius: 'var(--radius-sm)',
                           backgroundColor: 'var(--color-bg-input)',
-                          backgroundImage: primaryImage ? `url(${primaryImage})` : 'none',
+                          backgroundImage: `url(${primaryImage})`,
                           backgroundSize: 'cover',
                           backgroundPosition: 'center',
                           cursor: 'pointer',
@@ -588,9 +611,7 @@ export default function FleetPage() {
                           border: '1px solid var(--color-border)'
                         }}
                         title="Click to manage photos"
-                      >
-                        {!primaryImage && <span style={{ fontSize: '1rem' }}>🚗</span>}
-                      </div>
+                      />
                     </td>
                     <td className="font-mono font-bold">{vehicle.plateNumber}</td>
                     <td>{vehicle.make} {vehicle.model}</td>

@@ -287,7 +287,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <img
                 src={customLogo || '/byt-logo.png'}
                 alt="BYT Brand Logo"
-                style={{ height: 38, maxWidth: 130, objectFit: 'contain', display: 'block' }}
+                style={{ height: 30, maxWidth: 110, objectFit: 'contain', display: 'block' }}
               />
             ) : (
               <span className="logo-text-gold">BYT</span>
@@ -296,8 +296,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               className="topbar-title"
               style={{
                 borderLeft: '1px solid var(--color-border)',
-                paddingLeft: '12px',
-                fontSize: '0.85rem',
+                paddingLeft: '10px',
+                fontSize: '0.8rem',
                 fontWeight: 600,
                 color: 'var(--color-text-secondary)',
               }}
@@ -326,8 +326,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 background: showNotifications ? 'var(--color-bg-card-hover)' : 'var(--color-bg-card)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-md)',
-                width: 38,
-                height: 38,
+                width: 32,
+                height: 32,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -863,12 +863,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         .admin-topbar {
           position: sticky;
           top: 0;
-          height: 60px;
-          background: rgba(255, 255, 255, 0.92);
+          height: 52px;
+          background: rgba(255, 255, 255, 0.94);
           backdrop-filter: blur(20px);
           border-bottom: 1px solid var(--color-border);
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-          padding: 0 var(--space-xl);
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+          padding: 0 1.25rem;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -885,8 +885,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         }
 
         .sidebar-toggle-btn {
-          width: 38px;
-          height: 38px;
+          width: 32px;
+          height: 32px;
           background: var(--color-bg-card);
           border: 1px solid var(--color-border);
           border-radius: var(--radius-md);
@@ -1018,7 +1018,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             bottom: 0;
             left: 0;
             right: 0;
-            height: 62px;
+            height: 56px;
             background: rgba(255, 255, 255, 0.96);
             backdrop-filter: blur(16px);
             border-top: 1px solid var(--color-border);
@@ -1027,7 +1027,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             justify-content: space-around;
             z-index: 50;
             padding: 0 4px;
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.04);
           }
 
           .admin-mobile-bottom-nav a,
@@ -1037,14 +1037,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             align-items: center;
             justify-content: center;
             gap: 2px;
-            font-size: 0.68rem;
+            font-size: 0.65rem;
             font-weight: 600;
             color: #64748b;
             text-decoration: none;
             background: none;
             border: none;
             cursor: pointer;
-            padding: 6px 10px;
+            padding: 4px 8px;
             border-radius: var(--radius-sm);
             transition: color 0.15s ease;
           }
@@ -1055,14 +1055,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           }
 
           .admin-mobile-bottom-nav .nav-icon {
-            font-size: 1.15rem;
+            font-size: 1.05rem;
           }
         }
 
         @media (max-width: 1024px) {
           .admin-topbar {
             margin-left: 0 !important;
-            padding: 0 var(--space-md);
+            padding: 0 10px;
           }
 
           .sidebar {
@@ -1076,7 +1076,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
           .main-content {
             margin-left: 0 !important;
-            padding: var(--space-md) var(--space-md) 80px !important;
+            padding: var(--space-md) var(--space-md) 74px !important;
           }
         }
       `}</style>

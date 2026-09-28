@@ -114,7 +114,7 @@ export default function DriverMapComponent({ currentPos, trail, heading, mapLaye
       }).addTo(mapRef.current);
 
       markerRef.current.bindPopup(
-        `<div style="font-family:Inter,system-ui,sans-serif; min-width: 220px; padding: 2px;">
+        `<div style="font-family:'Plus Jakarta Sans',system-ui,sans-serif; min-width: 220px; padding: 2px;">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
             <strong style="font-size: 13px; color: #0891b2;">📍 Your Live Position</strong>
             <span style="font-size: 10px; background: #ecfeff; color: #0891b2; padding: 2px 6px; border-radius: 10px; font-weight:700;">Active GPS</span>

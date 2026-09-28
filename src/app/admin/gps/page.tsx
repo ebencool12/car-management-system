@@ -947,7 +947,7 @@ export default function GPSPage() {
         </div>
       </div>
 
-      {/* DIRECT DRIVER PHONE TRACKING ENGINE (TRACK BY PHONE AT WILL) */}
+      {/* DIRECT DRIVER PHONE TRACKING ENGINE */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(8, 145, 178, 0.15) 0%, rgba(15, 23, 42, 0.95) 100%)',
         border: '1px solid var(--byt-sea)',
@@ -977,7 +977,7 @@ export default function GPSPage() {
               </span>
             </div>
             <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-              Track the exact real-time street coordinates of any driver by phone number at will.
+              Track the exact real-time street coordinates and landmarks of any driver using their phone number.
             </div>
           </div>
         </div>
@@ -2138,9 +2138,13 @@ export default function GPSPage() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '1.5rem'
+                    fontSize: '1.5rem',
+                    overflow: 'hidden',
+                    backgroundImage: selectedVehicleDetails?.vInfo?.images?.[0] ? `url(${selectedVehicleDetails.vInfo.images[0]})` : undefined,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
                   }}>
-                    🚗
+                    {!selectedVehicleDetails?.vInfo?.images?.[0] && '🚗'}
                   </div>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

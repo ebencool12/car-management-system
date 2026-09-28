@@ -103,7 +103,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
           <img
             src="/byt-logo.png"
             alt="BYT Fleet"
-            style={{ height: 32, maxWidth: 120, objectFit: 'contain' }}
+            style={{ height: 26, maxWidth: 105, objectFit: 'contain' }}
           />
           <span style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', borderLeft: '1px solid var(--color-border)', paddingLeft: '8px', fontWeight: 600 }}>Driver Portal</span>
         </div>
@@ -180,7 +180,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Content */}
-      <div style={{ padding: immersive ? '0' : 'var(--space-lg)', maxWidth: immersive ? '100%' : 640, margin: '0 auto' }}>
+      <div style={{ padding: immersive ? '0' : '0.85rem 1rem', maxWidth: immersive ? '100%' : 580, margin: '0 auto' }}>
         {children}
       </div>
 
@@ -195,7 +195,7 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
 
           return (
             <Link key={item.href} href={item.href} className={isActive ? 'active' : ''} style={{ position: 'relative' }}>
-              <span className="nav-icon" style={{ fontSize: '1.25rem', position: 'relative' }}>
+              <span className="nav-icon" style={{ fontSize: '1.1rem', position: 'relative' }}>
                 {item.icon}
                 {item.href === '/driver/chat' && unreadChatCount > 0 && (
                   <span

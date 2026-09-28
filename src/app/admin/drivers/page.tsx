@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { demoDrivers, demoVehicles, getStatusBadgeClass, getBalanceLabel, Driver, getStoredDrivers, saveStoredDrivers } from '@/lib/demo-data';
+import { demoDrivers, demoVehicles, getStatusBadgeClass, getBalanceLabel, Driver, Vehicle, getStoredDrivers, saveStoredDrivers, saveStoredVehicles, getStoredVehicles } from '@/lib/demo-data';
 import {
   getDriverPhoneTelemetry,
   DriverPhoneTelemetry,
@@ -99,6 +99,7 @@ const DRIVER_PRECISE_LOCATIONS: Record<string, {
 
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>(demoDrivers);
+  const [vehicles, setVehicles] = useState<Vehicle[]>(demoVehicles);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -110,12 +111,18 @@ export default function DriversPage() {
   const [addDriverEmail, setAddDriverEmail] = useState('');
   const [addDriverPlate, setAddDriverPlate] = useState('UNASSIGNED');
   const [addDriverStatus, setAddDriverStatus] = useState<'ACTIVE' | 'PENDING'>('ACTIVE');
-  const [addDriverOperationalStatus, setAddDriverOperationalStatus] = useState<'ACTIVE' | 'ON_TRIP' | 'MAINTENANCE' | 'OFFLINE'>('ACTIVE');
+  const [addDriverOperationalStatus, setAddDriverOperationalStatus] = useState<'ACTIVE' | 'ON_TRIP' | 'MAINTENANCE' | 'OFFLINE' | 'ON_LEAVE'>('ACTIVE');
   const [addDriverDailyTarget, setAddDriverDailyTarget] = useState('100');
   const [addDriverWeeklyTarget, setAddDriverWeeklyTarget] = useState('600');
   const [addDriverInitialBalance, setAddDriverInitialBalance] = useState('0');
   const [addDriverFormError, setAddDriverFormError] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // New Vehicle inline form state (within Add Driver modal)
+  const [newVehPlate, setNewVehPlate] = useState('');
+  const [newVehMake, setNewVehMake] = useState('');
+  const [newVehModel, setNewVehModel] = useState('');
+  const [newVehYear, setNewVehYear] = useState('2023');
 
   // Edit Driver state
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
@@ -124,27 +131,35 @@ export default function DriversPage() {
   const [editEmail, setEditEmail] = useState('');
   const [editPlate, setEditPlate] = useState('UNASSIGNED');
   const [editStatus, setEditStatus] = useState<'ACTIVE' | 'PENDING' | 'REMOVED'>('ACTIVE');
-  const [editOperationalStatus, setEditOperationalStatus] = useState<'ACTIVE' | 'ON_TRIP' | 'MAINTENANCE' | 'OFFLINE'>('ACTIVE');
+  const [editOperationalStatus, setEditOperationalStatus] = useState<'ACTIVE' | 'ON_TRIP' | 'MAINTENANCE' | 'OFFLINE' | 'ON_LEAVE'>('ACTIVE');
   const [editDailyTarget, setEditDailyTarget] = useState('100');
   const [editWeeklyTarget, setEditWeeklyTarget] = useState('600');
   const [editBalance, setEditBalance] = useState('0');
   const [editDriverScore, setEditDriverScore] = useState('85');
   const [editFormError, setEditFormError] = useState('');
+  const [editNewVehPlate, setEditNewVehPlate] = useState('');
+  const [editNewVehMake, setEditNewVehMake] = useState('');
+  const [editNewVehModel, setEditNewVehModel] = useState('');
+  const [editNewVehYear, setEditNewVehYear] = useState('2023');
 
-  // Load saved drivers from localStorage on mount & listen to updates
+  // Load saved drivers & vehicles from localStorage on mount & listen to updates
   useEffect(() => {
     setDrivers(getStoredDrivers());
+    setVehicles(getStoredVehicles());
 
     const handleUpdate = () => {
       setDrivers(getStoredDrivers());
+      setVehicles(getStoredVehicles());
     };
 
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('byt-drivers-updated', handleUpdate);
+    window.addEventListener('byt-vehicles-updated', handleUpdate);
 
     return () => {
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('byt-drivers-updated', handleUpdate);
+      window.removeEventListener('byt-vehicles-updated', handleUpdate);
     };
   }, []);
 
@@ -162,6 +177,10 @@ export default function DriversPage() {
     setEditBalance(String(driver.balance ?? 0));
     setEditDriverScore(String(driver.driverScore ?? 85));
     setEditFormError('');
+    setEditNewVehPlate('');
+    setEditNewVehMake('');
+    setEditNewVehModel('');
+    setEditNewVehYear('2023');
   };
 
   const handleSaveEditedDriver = (e: React.FormEvent) => {
@@ -174,19 +193,47 @@ export default function DriversPage() {
 
     // Vehicle assignment
     let updatedVehicle = editingDriver.vehicle;
-    if (editPlate !== 'UNASSIGNED') {
-      const matchedVeh = demoVehicles.find(v => v.plateNumber === editPlate);
+    const currentVehs = getStoredVehicles();
+    if (editPlate === '__NEW__') {
+      if (!editNewVehPlate.trim() || !editNewVehMake.trim() || !editNewVehModel.trim()) {
+        setEditFormError('Please fill in Plate Number, Make, and Model for the new vehicle.');
+        return;
+      }
+      const newVehicle: Vehicle = {
+        id: `v-${Date.now()}`,
+        plateNumber: editNewVehPlate.trim().toUpperCase(),
+        make: editNewVehMake.trim(),
+        model: editNewVehModel.trim(),
+        year: parseInt(editNewVehYear) || 2023,
+        severityStatus: 'GREEN',
+        gpsDeviceId: `GPS-${Date.now().toString().slice(-4)}`,
+        assignedDriverName: editName.trim(),
+        assignedDriver: editingDriver.id,
+        mileage: 0,
+        fuelType: 'PETROL',
+        insuranceExpiry: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
+      };
+      updatedVehicle = newVehicle;
+      const updatedVehicles = [newVehicle, ...currentVehs];
+      saveStoredVehicles(updatedVehicles);
+      setVehicles(updatedVehicles);
+    } else if (editPlate !== 'UNASSIGNED') {
+      const matchedVeh = currentVehs.find(v => v.plateNumber === editPlate);
       if (matchedVeh) {
         matchedVeh.assignedDriverName = editName.trim();
         matchedVeh.assignedDriver = editingDriver.id;
         updatedVehicle = matchedVeh;
+        saveStoredVehicles([...currentVehs]);
+        setVehicles([...currentVehs]);
       }
     } else {
       if (updatedVehicle) {
-        const matchedVeh = demoVehicles.find(v => v.plateNumber === updatedVehicle?.plateNumber);
-        if (matchedVeh && matchedVeh.assignedDriver === editingDriver.id) {
+        const matchedVeh = currentVehs.find(v => v.plateNumber === updatedVehicle?.plateNumber);
+        if (matchedVeh && (matchedVeh.assignedDriver === editingDriver.id || matchedVeh.assignedDriverName === editingDriver.name)) {
           matchedVeh.assignedDriverName = null;
           matchedVeh.assignedDriver = null;
+          saveStoredVehicles([...currentVehs]);
+          setVehicles([...currentVehs]);
         }
       }
       updatedVehicle = undefined;
@@ -248,12 +295,41 @@ export default function DriversPage() {
     };
 
     // If vehicle was selected, assign driver to that vehicle
-    if (addDriverPlate && addDriverPlate !== 'UNASSIGNED') {
-      const matchedVeh = demoVehicles.find(v => v.plateNumber === addDriverPlate);
+    if (addDriverPlate === '__NEW__') {
+      // Create a new vehicle inline
+      if (!newVehPlate.trim() || !newVehMake.trim() || !newVehModel.trim()) {
+        setAddDriverFormError('Please fill in Plate Number, Make, and Model for the new vehicle.');
+        return;
+      }
+      const newVehicle: Vehicle = {
+        id: `v-${Date.now()}`,
+        plateNumber: newVehPlate.trim().toUpperCase(),
+        make: newVehMake.trim(),
+        model: newVehModel.trim(),
+        year: parseInt(newVehYear) || 2023,
+        severityStatus: 'GREEN',
+        gpsDeviceId: `GPS-${Date.now().toString().slice(-4)}`,
+        assignedDriverName: newDriver.name,
+        assignedDriver: newDriver.id,
+        mileage: 0,
+        fuelType: 'PETROL',
+        insuranceExpiry: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
+      };
+      newDriver.vehicle = newVehicle;
+      // Persist the new vehicle into the vehicles store
+      const allVehs = getStoredVehicles();
+      const updatedVehicles = [newVehicle, ...allVehs];
+      saveStoredVehicles(updatedVehicles);
+      setVehicles(updatedVehicles);
+    } else if (addDriverPlate && addDriverPlate !== 'UNASSIGNED') {
+      const allVehs = getStoredVehicles();
+      const matchedVeh = allVehs.find(v => v.plateNumber === addDriverPlate);
       if (matchedVeh) {
         matchedVeh.assignedDriverName = newDriver.name;
         matchedVeh.assignedDriver = newDriver.id;
         newDriver.vehicle = matchedVeh;
+        saveStoredVehicles([...allVehs]);
+        setVehicles([...allVehs]);
       }
     }
 
@@ -273,6 +349,10 @@ export default function DriversPage() {
     setAddDriverWeeklyTarget('600');
     setAddDriverInitialBalance('0');
     setAddDriverFormError('');
+    setNewVehPlate('');
+    setNewVehMake('');
+    setNewVehModel('');
+    setNewVehYear('2023');
     setShowAddModal(false);
 
     setToastMessage(`Driver "${newDriver.name}" successfully added to the fleet!`);
@@ -702,7 +782,7 @@ export default function DriversPage() {
         </div>
       </div>
 
-      {/* DIRECT DRIVER PHONE TRACKER BAR (AT WILL) */}
+      {/* DIRECT DRIVER PHONE TRACKER BAR */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(8, 145, 178, 0.12) 0%, rgba(15, 23, 42, 0.04) 100%)',
         border: '1px solid var(--byt-sea)',
@@ -719,11 +799,8 @@ export default function DriversPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '1.4rem' }}>🛰️</span>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--byt-sea-dark)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>Track Driver Precise Location by Phone Number</span>
-              <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '10px', background: 'rgba(8, 145, 178, 0.15)', color: 'var(--byt-sea-dark)', fontWeight: 700 }}>
-                At Will
-              </span>
+            <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--byt-sea-dark)' }}>
+              Track Driver Precise Location by Phone Number
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
               Pinpoint the real-time street coordinates and landmarks of any driver using their phone number.
@@ -775,7 +852,7 @@ export default function DriversPage() {
           </thead>
           <tbody>
             {filtered.map(driver => {
-              const vehicle = demoVehicles.find(v => v.assignedDriverName === driver.name);
+              const vehicle = driver.vehicle || vehicles.find(v => v.assignedDriverName === driver.name) || demoVehicles.find(v => v.assignedDriverName === driver.name);
               const bal = getBalanceLabel(driver.balance);
               const driverMsgs = conversations[driver.id] || [];
               const dp = driverPictures[driver.id];
@@ -883,6 +960,18 @@ export default function DriversPage() {
                   <td>
                     {vehicle ? (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                        {vehicle.images?.[0] && (
+                          <div style={{
+                            width: 38,
+                            height: 28,
+                            borderRadius: '4px',
+                            backgroundImage: `url(${vehicle.images[0]})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                            border: '1px solid var(--color-border)',
+                            flexShrink: 0
+                          }} />
+                        )}
                         <code className="text-xs font-mono" style={{ color: 'var(--byt-sea-dark)', background: 'var(--color-bg-input)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--color-border)', fontWeight: 600 }}>
                           {vehicle.plateNumber}
                         </code>
@@ -920,6 +1009,24 @@ export default function DriversPage() {
                   </td>
                   <td>
                     <span className={`badge ${getStatusBadgeClass(driver.status)}`}>{driver.status}</span>
+                    {driver.operationalStatus === 'ON_LEAVE' && (
+                      <span
+                        style={{
+                          marginLeft: '4px',
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          color: '#92400e',
+                          background: '#fffbeb',
+                          border: '1px solid #fde68a',
+                          padding: '1px 6px',
+                          borderRadius: '10px',
+                          cursor: driver.leaveReason ? 'help' : 'default',
+                        }}
+                        title={driver.leaveReason ? `Leave: ${driver.leaveReason} (${driver.leaveStartDate || ''}${driver.leaveEndDate ? ' — ' + driver.leaveEndDate : ''})` : 'On Leave'}
+                      >
+                        🏖️ ON LEAVE
+                      </span>
+                    )}
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1258,10 +1365,22 @@ export default function DriversPage() {
                 🚗 Assigned Vehicle Dossier
               </span>
               {(() => {
-                const veh = demoVehicles.find(v => v.assignedDriverName === selectedProfileDriver.name);
+                const veh = selectedProfileDriver.vehicle || vehicles.find(v => v.assignedDriverName === selectedProfileDriver.name) || demoVehicles.find(v => v.assignedDriverName === selectedProfileDriver.name);
                 if (!veh) return <p className="text-muted text-sm">No vehicle currently assigned.</p>;
                 return (
                   <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 'var(--radius-md)', padding: '14px' }}>
+                    {veh.images?.[0] && (
+                      <div style={{
+                        width: '100%',
+                        height: 110,
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundImage: `url(${veh.images[0]})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        marginBottom: '10px',
+                        border: '1px solid #cbd5e1'
+                      }} />
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <code style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--byt-sea-dark)', background: '#e0f2fe', padding: '2px 8px', borderRadius: '4px' }}>
                         {veh.plateNumber}
@@ -2444,6 +2563,7 @@ export default function DriversPage() {
                         <option value="ACTIVE">🟢 ACTIVE (Ready)</option>
                         <option value="ON_TRIP">🟡 ON_TRIP (On Road)</option>
                         <option value="MAINTENANCE">🔧 MAINTENANCE</option>
+                        <option value="ON_LEAVE">🏖️ ON_LEAVE (Day Off)</option>
                         <option value="OFFLINE">⚪ OFFLINE</option>
                       </select>
                     </div>
@@ -2457,13 +2577,84 @@ export default function DriversPage() {
                       onChange={e => setEditPlate(e.target.value)}
                     >
                       <option value="UNASSIGNED">None (Unassigned / Floating Driver)</option>
-                      {demoVehicles.map(v => (
+                      <option value="__NEW__">➕ Create New Vehicle…</option>
+                      {vehicles.map(v => (
                         <option key={v.id} value={v.plateNumber}>
                           {v.plateNumber} — {v.make} {v.model} {v.assignedDriverName && v.assignedDriverName !== editingDriver.name ? `(Assigned to: ${v.assignedDriverName})` : v.assignedDriverName === editingDriver.name ? '(Currently assigned to this driver)' : '(Available)'}
                         </option>
                       ))}
                     </select>
                   </div>
+
+                  {/* Inline New Vehicle Form for Edit Driver Modal */}
+                  {editPlate === '__NEW__' && (
+                    <div style={{
+                      background: 'rgba(8, 145, 178, 0.04)',
+                      border: '1px solid rgba(8, 145, 178, 0.2)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: 'var(--space-md)',
+                      marginBottom: 'var(--space-md)',
+                      animation: 'fadeInUp 0.2s ease-out',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-sm)' }}>
+                        <span style={{ fontSize: '0.85rem' }}>🚗</span>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--byt-sea-dark)' }}>New Vehicle Details</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '0.75rem' }}>Plate Number *</label>
+                          <input
+                            type="text"
+                            className="form-input font-mono"
+                            placeholder="GR-XXXX-XX"
+                            value={editNewVehPlate}
+                            onChange={e => setEditNewVehPlate(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '0.75rem' }}>Year</label>
+                          <input
+                            type="number"
+                            className="form-input font-mono"
+                            placeholder="2022"
+                            min="2010"
+                            max="2030"
+                            value={editNewVehYear}
+                            onChange={e => setEditNewVehYear(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)' }}>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '0.75rem' }}>Make *</label>
+                          <select
+                            className="form-select"
+                            value={editNewVehMake}
+                            onChange={e => setEditNewVehMake(e.target.value)}
+                          >
+                            <option value="">Select Make</option>
+                            <option value="Toyota">Toyota</option>
+                            <option value="Hyundai">Hyundai</option>
+                            <option value="Kia">Kia</option>
+                            <option value="Nissan">Nissan</option>
+                            <option value="Honda">Honda</option>
+                            <option value="Suzuki">Suzuki</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '0.75rem' }}>Model *</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Corolla, Vitz, i10"
+                            value={editNewVehModel}
+                            onChange={e => setEditNewVehModel(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Remittance Targets & Balances */}
@@ -2626,12 +2817,13 @@ export default function DriversPage() {
                       <option value="ACTIVE">🟢 ACTIVE (Ready)</option>
                       <option value="ON_TRIP">🟡 ON_TRIP (On Road)</option>
                       <option value="MAINTENANCE">🔧 MAINTENANCE</option>
+                      <option value="ON_LEAVE">🏖️ ON_LEAVE (Day Off)</option>
                       <option value="OFFLINE">⚪ OFFLINE</option>
                     </select>
                   </div>
                 </div>
 
-                {/* Assign Vehicle */}
+                {/* Assign Vehicle — Pick Existing OR Create New */}
                 <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
                   <label className="form-label">Assign Vehicle</label>
                   <select
@@ -2640,13 +2832,84 @@ export default function DriversPage() {
                     onChange={e => setAddDriverPlate(e.target.value)}
                   >
                     <option value="UNASSIGNED">None (Unassigned)</option>
-                    {demoVehicles.map(v => (
+                    <option value="__NEW__">➕ Create New Vehicle…</option>
+                    {vehicles.map(v => (
                       <option key={v.id} value={v.plateNumber}>
                         {v.plateNumber} — {v.make} {v.model} {v.assignedDriverName ? `(Currently: ${v.assignedDriverName})` : '(Available)'}
                       </option>
                     ))}
                   </select>
                 </div>
+
+                {/* Inline New Vehicle Form (shown when "Create New Vehicle" is selected) */}
+                {addDriverPlate === '__NEW__' && (
+                  <div style={{
+                    background: 'rgba(8, 145, 178, 0.04)',
+                    border: '1px solid rgba(8, 145, 178, 0.2)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: 'var(--space-md)',
+                    marginBottom: 'var(--space-md)',
+                    animation: 'fadeInUp 0.2s ease-out',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-sm)' }}>
+                      <span style={{ fontSize: '0.85rem' }}>🚗</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--byt-sea-dark)' }}>New Vehicle Details</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Plate Number *</label>
+                        <input
+                          type="text"
+                          className="form-input font-mono"
+                          placeholder="GR-XXXX-XX"
+                          value={newVehPlate}
+                          onChange={e => setNewVehPlate(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Year</label>
+                        <input
+                          type="number"
+                          className="form-input font-mono"
+                          placeholder="2022"
+                          min="2010"
+                          max="2030"
+                          value={newVehYear}
+                          onChange={e => setNewVehYear(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)' }}>
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Make *</label>
+                        <select
+                          className="form-select"
+                          value={newVehMake}
+                          onChange={e => setNewVehMake(e.target.value)}
+                        >
+                          <option value="">Select Make</option>
+                          <option value="Toyota">Toyota</option>
+                          <option value="Hyundai">Hyundai</option>
+                          <option value="Kia">Kia</option>
+                          <option value="Nissan">Nissan</option>
+                          <option value="Honda">Honda</option>
+                          <option value="Suzuki">Suzuki</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Model *</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. Corolla, Vitz, i10"
+                          value={newVehModel}
+                          onChange={e => setNewVehModel(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Daily Target & Weekly Target & Balance */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-sm)' }}>

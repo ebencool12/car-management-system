@@ -21,6 +21,14 @@ export default function DriverHome() {
   // Parts Exchange for BYT debt calculation
   const [partsExchangeItems, setPartsExchangeItems] = useState<any[]>([]);
 
+  // Day-off / Leave Request State
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [leaveReason, setLeaveReason] = useState('');
+  const [leaveStartDate, setLeaveStartDate] = useState('');
+  const [leaveEndDate, setLeaveEndDate] = useState('');
+  const [leaveSubmitted, setLeaveSubmitted] = useState(false);
+  const [leaveError, setLeaveError] = useState('');
+
   // Paystack Remittance State
   const [showPaystackModal, setShowPaystackModal] = useState(false);
   const [payAmount, setPayAmount] = useState('');
@@ -830,7 +838,130 @@ export default function DriverHome() {
         </Link>
       </div>
 
-      {/* 5. SESSION END CARD */}
+      {/* 5. REQUEST DAY OFF CARD */}
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: '16px',
+          padding: '1.5rem',
+          boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <div>
+            <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#64748b', marginBottom: '0.15rem' }}>
+              Availability
+            </div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+              {currentDriver?.operationalStatus === 'ON_LEAVE' ? 'On Leave' : 'Active Duty'}
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              background: currentDriver?.operationalStatus === 'ON_LEAVE' ? '#fffbeb' : '#f0fdf4',
+              border: `1px solid ${currentDriver?.operationalStatus === 'ON_LEAVE' ? '#fde68a' : '#bbf7d0'}`,
+              borderRadius: '20px',
+              color: currentDriver?.operationalStatus === 'ON_LEAVE' ? '#92400e' : '#166534',
+              fontSize: '0.74rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: currentDriver?.operationalStatus === 'ON_LEAVE' ? '#d97706' : '#16a34a' }} />
+            <span>{currentDriver?.operationalStatus === 'ON_LEAVE' ? 'On Leave' : 'Available'}</span>
+          </div>
+        </div>
+
+        {currentDriver?.leaveReason && currentDriver?.operationalStatus === 'ON_LEAVE' && (
+          <div style={{ padding: '0.6rem 0.8rem', background: '#fffbeb', borderRadius: '10px', border: '1px solid #fde68a', marginBottom: '0.75rem', fontSize: '0.78rem', color: '#92400e' }}>
+            <strong>Leave Reason:</strong> {currentDriver.leaveReason}
+            <div style={{ fontSize: '0.72rem', color: '#b45309', marginTop: '2px' }}>
+              {currentDriver.leaveStartDate} — {currentDriver.leaveEndDate || 'Until further notice'}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setShowLeaveModal(true);
+              setLeaveSubmitted(false);
+              setLeaveError('');
+              setLeaveReason('');
+              const today = new Date().toISOString().split('T')[0];
+              setLeaveStartDate(today);
+              setLeaveEndDate('');
+            }}
+            style={{
+              flex: 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '10px 14px',
+              background: currentDriver?.operationalStatus === 'ON_LEAVE' ? '#ffffff' : '#fffbeb',
+              color: currentDriver?.operationalStatus === 'ON_LEAVE' ? '#0f172a' : '#92400e',
+              border: `1px solid ${currentDriver?.operationalStatus === 'ON_LEAVE' ? '#e2e8f0' : '#fde68a'}`,
+              borderRadius: '10px',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background 100ms ease',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            {currentDriver?.operationalStatus === 'ON_LEAVE' ? 'Update Leave' : 'Request Day Off'}
+          </button>
+
+          {currentDriver?.operationalStatus === 'ON_LEAVE' && (
+            <button
+              type="button"
+              onClick={() => {
+                const allDrivers = getStoredDrivers();
+                const updated = allDrivers.map(d => {
+                  if (d.id === driver.id || d.name === driver.name) {
+                    return { ...d, operationalStatus: 'ACTIVE' as const, leaveReason: undefined, leaveStartDate: undefined, leaveEndDate: undefined };
+                  }
+                  return d;
+                });
+                saveStoredDrivers(updated);
+                setCurrentDriver(prev => prev ? { ...prev, operationalStatus: 'ACTIVE', leaveReason: undefined, leaveStartDate: undefined, leaveEndDate: undefined } : null);
+              }}
+              style={{
+                flex: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '10px 14px',
+                background: '#f0fdf4',
+                color: '#166534',
+                border: '1px solid #bbf7d0',
+                borderRadius: '10px',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              ✓ Resume Active Duty
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 6. SESSION END CARD */}
       <div
         style={{
           border: '1px solid #e2e8f0',
@@ -1479,6 +1610,193 @@ export default function DriverHome() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DAY OFF / LEAVE REQUEST MODAL */}
+      {showLeaveModal && (
+        <div
+          className="modal-overlay animate-in"
+          style={{
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 9999,
+          }}
+          onClick={() => !leaveSubmitted && setShowLeaveModal(false)}
+        >
+          <div
+            className="modal-content animate-in"
+            style={{ maxWidth: 460, width: '92%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {leaveSubmitted ? (
+              <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.35rem', color: '#0f172a' }}>Leave Request Submitted</h3>
+                <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '0 0 1.25rem', lineHeight: 1.5 }}>
+                  Your status has been updated to <strong>On Leave</strong>. Admin and dispatch have been notified.
+                </p>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.8rem', marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Reason:</span>
+                    <span style={{ fontWeight: 600, color: '#0f172a' }}>{leaveReason}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>From:</span>
+                    <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'ui-monospace, monospace' }}>{leaveStartDate}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>To:</span>
+                    <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'ui-monospace, monospace' }}>{leaveEndDate || 'Until further notice'}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLeaveModal(false)}
+                  style={{ width: '100%', padding: '10px', background: '#0f172a', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!leaveReason.trim()) {
+                  setLeaveError('Please provide a reason for your day off.');
+                  return;
+                }
+                if (!leaveStartDate) {
+                  setLeaveError('Please select a start date.');
+                  return;
+                }
+
+                // Update driver status to ON_LEAVE
+                const allDrivers = getStoredDrivers();
+                const updated = allDrivers.map(d => {
+                  if (d.id === driver.id || d.name === driver.name) {
+                    return {
+                      ...d,
+                      operationalStatus: 'ON_LEAVE' as const,
+                      leaveReason: leaveReason.trim(),
+                      leaveStartDate: leaveStartDate,
+                      leaveEndDate: leaveEndDate || undefined,
+                    };
+                  }
+                  return d;
+                });
+                saveStoredDrivers(updated);
+                setCurrentDriver(prev => prev ? {
+                  ...prev,
+                  operationalStatus: 'ON_LEAVE',
+                  leaveReason: leaveReason.trim(),
+                  leaveStartDate: leaveStartDate,
+                  leaveEndDate: leaveEndDate || undefined,
+                } : null);
+                setLeaveSubmitted(true);
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>Request Day Off</h3>
+                    <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '2px' }}>Notify admin of your unavailability</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowLeaveModal(false)}
+                    style={{ padding: '4px 8px', background: 'none', border: '1px solid #e2e8f0', borderRadius: '6px', color: '#64748b', cursor: 'pointer', fontSize: '0.78rem' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {leaveError && (
+                  <div style={{ padding: '0.6rem 0.85rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#dc2626', fontSize: '0.78rem', marginBottom: '1rem', lineHeight: 1.4 }}>
+                    {leaveError}
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b', marginBottom: '0.3rem' }}>
+                    Reason for Day Off *
+                  </label>
+                  <textarea
+                    value={leaveReason}
+                    onChange={(e) => setLeaveReason(e.target.value)}
+                    placeholder="e.g. Personal emergency, medical appointment, family event..."
+                    rows={3}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.88rem', color: '#0f172a', outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b', marginBottom: '0.3rem' }}>
+                      Start Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={leaveStartDate}
+                      onChange={(e) => setLeaveStartDate(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', fontFamily: 'ui-monospace, monospace', color: '#0f172a', outline: 'none', boxSizing: 'border-box' }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b', marginBottom: '0.3rem' }}>
+                      End Date <span style={{ color: '#94a3b8', fontWeight: 500, textTransform: 'none' }}>(optional)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={leaveEndDate}
+                      onChange={(e) => setLeaveEndDate(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', fontFamily: 'ui-monospace, monospace', color: '#0f172a', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Quick reason presets */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+                  {['Personal emergency', 'Medical appointment', 'Family event', 'Vehicle maintenance', 'Rest day'].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setLeaveReason(preset)}
+                      style={{
+                        background: leaveReason === preset ? '#ecfeff' : '#f8fafc',
+                        border: `1px solid ${leaveReason === preset ? '#0891b2' : '#e2e8f0'}`,
+                        color: leaveReason === preset ? '#0891b2' : '#64748b',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowLeaveModal(false)}
+                    style={{ padding: '10px 16px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    style={{ padding: '10px 20px', background: '#d97706', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    Submit Day Off Request
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

@@ -7,7 +7,7 @@ export interface Driver {
   phone: string;
   email: string;
   status: 'ACTIVE' | 'PENDING' | 'REMOVED';
-  operationalStatus?: 'ACTIVE' | 'ON_TRIP' | 'MAINTENANCE' | 'OFFLINE';
+  operationalStatus?: 'ACTIVE' | 'ON_TRIP' | 'MAINTENANCE' | 'OFFLINE' | 'ON_LEAVE';
   balance: number;
   vehicle?: Vehicle | null;
   profilePicture?: string | null;
@@ -22,6 +22,10 @@ export interface Driver {
   idlingMinutes?: number;
   dailyTarget?: number;
   weeklyTarget?: number;
+  // Leave / day-off fields
+  leaveReason?: string;
+  leaveStartDate?: string;
+  leaveEndDate?: string;
 }
 
 export interface Vehicle {
@@ -249,7 +253,7 @@ export interface DailyRemittance {
 }
 
 // ── Demo Version Sync (Clears previous bloated demo caches and syncs parts inventory) ──
-const CURRENT_DEMO_VERSION = 'byt_demo_20pct_v3';
+const CURRENT_DEMO_VERSION = 'byt_demo_fleet_images_v7';
 const CURRENT_PARTS_VERSION = 'ghana_taxi_parts_v1';
 export function ensureDemoVersionSynced() {
   if (typeof window === 'undefined') return;
@@ -278,12 +282,17 @@ export function ensureDemoVersionSynced() {
   } catch {}
 }
 
-// ── Demo data (Scaled down to ~20% for clean live production fill-in) ──
+// ── Demo data (Full Fleet with High-Resolution Vehicle Photos) ──
 
 export const demoDrivers: Driver[] = [
   { id: '1', name: 'Kwame Asante', phone: '024-419-8234', email: 'kwame@gmail.com', status: 'ACTIVE', operationalStatus: 'ON_TRIP', balance: 150.50, createdAt: '2026-06-15', driverScore: 87, tripsCompleted: 342, onTimeRate: 94, totalEarnings: 18520, harshBrakingCount: 3, speedingEvents: 2, idlingMinutes: 45, dailyTarget: 100, weeklyTarget: 600 },
   { id: '2', name: 'Ama Mensah', phone: '055-892-1045', email: 'ama@gmail.com', status: 'ACTIVE', operationalStatus: 'ACTIVE', balance: -75.00, createdAt: '2026-07-01', driverScore: 92, tripsCompleted: 298, onTimeRate: 98, totalEarnings: 16200, harshBrakingCount: 1, speedingEvents: 0, idlingMinutes: 22, dailyTarget: 100, weeklyTarget: 600 },
-  { id: '3', name: 'Kofi Boateng', phone: '027-314-9820', email: 'kofi@gmail.com', status: 'PENDING', balance: 0, createdAt: '2026-07-10' },
+  { id: '3', name: 'Kofi Boateng', phone: '027-314-9820', email: 'kofi@gmail.com', status: 'ACTIVE', operationalStatus: 'ACTIVE', balance: 40.00, createdAt: '2026-07-10', driverScore: 89, tripsCompleted: 215, onTimeRate: 95, totalEarnings: 12400, harshBrakingCount: 2, speedingEvents: 1, idlingMinutes: 25, dailyTarget: 100, weeklyTarget: 600 },
+  { id: '4', name: 'Yaw Darko', phone: '024-555-1001', email: 'yaw.darko@gmail.com', status: 'ACTIVE', operationalStatus: 'ON_TRIP', balance: 45.00, createdAt: '2026-05-20', driverScore: 91, tripsCompleted: 410, onTimeRate: 96, totalEarnings: 22100, harshBrakingCount: 2, speedingEvents: 1, idlingMinutes: 30, dailyTarget: 110, weeklyTarget: 660 },
+  { id: '5', name: 'Akosua Frimpong', phone: '020-332-7891', email: 'akosua.f@gmail.com', status: 'ACTIVE', operationalStatus: 'ACTIVE', balance: -20.00, createdAt: '2026-04-10', driverScore: 89, tripsCompleted: 375, onTimeRate: 95, totalEarnings: 20350, harshBrakingCount: 4, speedingEvents: 1, idlingMinutes: 38, dailyTarget: 100, weeklyTarget: 600 },
+  { id: '6', name: 'Nana Adjei', phone: '024-778-3456', email: 'nana.adjei@gmail.com', status: 'ACTIVE', operationalStatus: 'MAINTENANCE', balance: 0, createdAt: '2026-06-01', driverScore: 85, tripsCompleted: 320, onTimeRate: 92, totalEarnings: 17400, harshBrakingCount: 5, speedingEvents: 3, idlingMinutes: 52, dailyTarget: 100, weeklyTarget: 600 },
+  { id: '7', name: 'Abena Osei', phone: '055-119-5678', email: 'abena.osei@gmail.com', status: 'ACTIVE', operationalStatus: 'ON_LEAVE', balance: 80.00, createdAt: '2026-03-15', driverScore: 78, tripsCompleted: 280, onTimeRate: 88, totalEarnings: 15200, harshBrakingCount: 7, speedingEvents: 4, idlingMinutes: 65, dailyTarget: 100, weeklyTarget: 600, leaveReason: 'Family wedding out of town', leaveStartDate: '2026-09-28', leaveEndDate: '2026-09-30' },
+  { id: '8', name: 'Kwabena Owusu', phone: '027-660-4321', email: 'kwabena.o@gmail.com', status: 'ACTIVE', operationalStatus: 'ACTIVE', balance: -110.00, createdAt: '2026-02-28', driverScore: 94, tripsCompleted: 512, onTimeRate: 97, totalEarnings: 27800, harshBrakingCount: 1, speedingEvents: 0, idlingMinutes: 18, dailyTarget: 120, weeklyTarget: 720 },
 ];
 
 export function getStoredDrivers(): Driver[] {
@@ -329,6 +338,9 @@ export const demoVehicles: Vehicle[] = [
     insuranceExpiry: '2027-03-20',
     images: [
       'https://images.unsplash.com/photo-1623869675781-80aa31012a5a?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1590362891991-f776e747a588?w=800&auto=format&fit=crop&q=80'
     ],
     conditionLog: [
       { date: '2026-08-15', event: 'Oil change + filter replacement', type: 'SERVICE' },
@@ -351,10 +363,163 @@ export const demoVehicles: Vehicle[] = [
     fuelType: 'PETROL',
     insuranceExpiry: '2027-01-15',
     images: [
+      'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&auto=format&fit=crop&q=80',
       'https://images.unsplash.com/photo-1590362891991-f776e747a588?w=800&auto=format&fit=crop&q=80'
     ],
     conditionLog: [
       { date: '2026-09-01', event: 'Full service — oil, filters', type: 'SERVICE' },
+    ]
+  },
+  {
+    id: 'v3',
+    plateNumber: 'GR-2100-23',
+    make: 'Toyota',
+    model: 'Vitz',
+    year: 2021,
+    severityStatus: 'GREEN',
+    gpsDeviceId: 'GPS-003',
+    assignedDriverName: 'Kofi Boateng',
+    mileage: 29400,
+    lastServiceDate: '2026-08-28',
+    nextServiceDue: '2026-10-28',
+    nextServiceMileage: 35000,
+    fuelType: 'PETROL',
+    insuranceExpiry: '2027-05-12',
+    images: [
+      'https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1590362891991-f776e747a588?w=800&auto=format&fit=crop&q=80'
+    ],
+    conditionLog: [
+      { date: '2026-08-28', event: 'Front brake pads & rotor check', type: 'SERVICE' }
+    ]
+  },
+  {
+    id: 'v4',
+    plateNumber: 'GR-3201-22',
+    make: 'Hyundai',
+    model: 'Accent',
+    year: 2020,
+    severityStatus: 'GREEN',
+    gpsDeviceId: 'GPS-004',
+    assignedDriverName: 'Yaw Darko',
+    mileage: 41800,
+    lastServiceDate: '2026-07-15',
+    nextServiceDue: '2026-10-01',
+    nextServiceMileage: 46000,
+    fuelType: 'PETROL',
+    insuranceExpiry: '2027-04-10',
+    images: [
+      'https://images.unsplash.com/photo-1550355291-bbee04a92027?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1590362891991-f776e747a588?w=800&auto=format&fit=crop&q=80'
+    ],
+    conditionLog: [
+      { date: '2026-07-15', event: '40k Scheduled inspection — engine mount tightened', type: 'SERVICE' }
+    ]
+  },
+  {
+    id: 'v5',
+    plateNumber: 'GR-4302-23',
+    make: 'Kia',
+    model: 'Rio',
+    year: 2022,
+    severityStatus: 'GREEN',
+    gpsDeviceId: 'GPS-005',
+    assignedDriverName: 'Akosua Frimpong',
+    mileage: 26500,
+    lastServiceDate: '2026-09-10',
+    nextServiceDue: '2026-11-10',
+    nextServiceMileage: 32000,
+    fuelType: 'PETROL',
+    insuranceExpiry: '2027-06-25',
+    images: [
+      'https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1502877338535-766e1452684a?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&auto=format&fit=crop&q=80'
+    ],
+    conditionLog: [
+      { date: '2026-09-10', event: 'Synthetic oil replacement & AC pollen filter', type: 'SERVICE' }
+    ]
+  },
+  {
+    id: 'v6',
+    plateNumber: 'GR-5403-21',
+    make: 'Kia',
+    model: 'Picanto',
+    year: 2021,
+    severityStatus: 'YELLOW',
+    gpsDeviceId: 'GPS-006',
+    assignedDriverName: 'Nana Adjei',
+    mileage: 53200,
+    lastServiceDate: '2026-06-20',
+    nextServiceDue: '2026-09-25',
+    nextServiceMileage: 55000,
+    fuelType: 'PETROL',
+    insuranceExpiry: '2027-01-30',
+    images: [
+      'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1502877338535-766e1452684a?w=800&auto=format&fit=crop&q=80'
+    ],
+    conditionLog: [
+      { date: '2026-06-20', event: 'Suspension bushing inspection — minor wear observed', type: 'INSPECTION' }
+    ]
+  },
+  {
+    id: 'v7',
+    plateNumber: 'GR-6504-22',
+    make: 'Hyundai',
+    model: 'Elantra',
+    year: 2022,
+    severityStatus: 'GREEN',
+    gpsDeviceId: 'GPS-007',
+    assignedDriverName: 'Abena Osei',
+    mileage: 33100,
+    lastServiceDate: '2026-08-05',
+    nextServiceDue: '2026-10-20',
+    nextServiceMileage: 38000,
+    fuelType: 'PETROL',
+    insuranceExpiry: '2027-07-18',
+    images: [
+      'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1550355291-bbee04a92027?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1590362891991-f776e747a588?w=800&auto=format&fit=crop&q=80'
+    ],
+    conditionLog: [
+      { date: '2026-08-05', event: 'Electronic diagnostics & wheel alignment passed', type: 'INSPECTION' }
+    ]
+  },
+  {
+    id: 'v8',
+    plateNumber: 'GR-7605-23',
+    make: 'Toyota',
+    model: 'Corolla',
+    year: 2021,
+    severityStatus: 'GREEN',
+    gpsDeviceId: 'GPS-008',
+    assignedDriverName: 'Kwabena Owusu',
+    mileage: 22800,
+    lastServiceDate: '2026-09-12',
+    nextServiceDue: '2026-11-15',
+    nextServiceMileage: 28000,
+    fuelType: 'PETROL',
+    insuranceExpiry: '2027-08-30',
+    images: [
+      'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1623869675781-80aa31012a5a?w=800&auto=format&fit=crop&q=80'
+    ],
+    conditionLog: [
+      { date: '2026-09-12', event: 'First tier factory warranty inspection — pristine', type: 'SERVICE' }
     ]
   },
 ];

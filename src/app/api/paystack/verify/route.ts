@@ -50,20 +50,40 @@ export async function POST(req: Request) {
     const targetDriverId = driverId || data.metadata?.driverId || '1';
     const targetDriverName = driverName || data.metadata?.driverName || 'Kwame Asante';
 
+    // NAME MATCHING: Verify the payment metadata/reference matches the driver on the system
+    const driver = demoDrivers.find(d => d.id === targetDriverId || d.name === targetDriverName);
+
+    if (!driver) {
+      return NextResponse.json({
+        status: false,
+        verified: false,
+        paystackStatus: 'success',
+        message: `Payment was successful on Paystack but the driver name "${targetDriverName}" does not match any registered driver in the BYT system. No balance was deducted. Contact admin.`,
+      }, { status: 400 });
+    }
+
+    // Cross-check: if metadata has a driverName, verify it matches the system driver
+    const metadataDriverName = data.metadata?.driverName as string | undefined;
+    if (metadataDriverName && metadataDriverName.toLowerCase().trim() !== driver.name.toLowerCase().trim()) {
+      return NextResponse.json({
+        status: false,
+        verified: false,
+        paystackStatus: 'success',
+        message: `Payment reference name "${metadataDriverName}" does not match the registered driver "${driver.name}". For security, balance was not deducted. Please contact admin to resolve.`,
+      }, { status: 400 });
+    }
+
     // Prevent double crediting for the same reference
     if (!processedReferences.has(reference)) {
       processedReferences.add(reference);
 
       // Deduct balance from driver
-      const driver = demoDrivers.find(d => d.id === targetDriverId || d.name === targetDriverName);
-      if (driver) {
-        driver.balance = Math.max(0, driver.balance - amountGhs);
-      }
+      driver.balance = Math.max(0, driver.balance - amountGhs);
 
       // Add verified record to sales ledger
       const newSale: SalesRecord = {
         id: `paystack-${reference}`,
-        driverName: driver ? driver.name : targetDriverName,
+        driverName: driver.name,
         weekLabel: '2026-W38',
         amount: amountGhs,
         paymentMethod: `PAYSTACK (${data.channel?.toUpperCase() || 'ONLINE'})`,
@@ -106,7 +126,7 @@ export async function POST(req: Request) {
             data: {
               amount: amountGhs,
               direction: 'INFLOW',
-              description: `Paystack Verified Remittance (Ref: ${reference})`,
+              description: `Paystack Verified Remittance (Ref: ${reference}, Driver: ${driver.name})`,
               driverId: dbDriver.id,
             }
           });
