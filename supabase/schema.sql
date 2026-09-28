@@ -1,6 +1,7 @@
 -- ============================================================
 -- BYT FLEET MANAGEMENT PLATFORM — ENTERPRISE DATABASE SCHEMA
 -- Target: Supabase (PostgreSQL 15+)
+-- Safe to re-run multiple times (Idempotent)
 -- ============================================================
 
 -- Enable UUID extension if not already enabled
@@ -232,12 +233,38 @@ CREATE TABLE IF NOT EXISTS public.maintenance_schedules (
 );
 
 -- ============================================================
--- 11. ENABLE REALTIME
+-- 11. ENABLE REALTIME (SAFELY CHECK BEFORE ADDING)
 -- ============================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.location_pings;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.sales_records;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_conversations;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'chat_messages'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'location_pings'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.location_pings;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'sales_records'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.sales_records;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'chat_conversations'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_conversations;
+    END IF;
+END $$;
 
 -- ============================================================
 -- 12. STORAGE BUCKETS
@@ -249,17 +276,23 @@ VALUES
     ('fleet-images', 'fleet-images', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Storage public policies
+-- Storage public policies (safely drop before create)
+DROP POLICY IF EXISTS "Public Access to Driver Selfies" ON storage.objects;
+DROP POLICY IF EXISTS "Public Upload to Driver Selfies" ON storage.objects;
 CREATE POLICY "Public Access to Driver Selfies" ON storage.objects
     FOR SELECT USING (bucket_id = 'driver-selfies');
 CREATE POLICY "Public Upload to Driver Selfies" ON storage.objects
     FOR INSERT WITH CHECK (bucket_id = 'driver-selfies');
 
+DROP POLICY IF EXISTS "Public Access to Documents" ON storage.objects;
+DROP POLICY IF EXISTS "Public Upload to Documents" ON storage.objects;
 CREATE POLICY "Public Access to Documents" ON storage.objects
     FOR SELECT USING (bucket_id = 'documents');
 CREATE POLICY "Public Upload to Documents" ON storage.objects
     FOR INSERT WITH CHECK (bucket_id = 'documents');
 
+DROP POLICY IF EXISTS "Public Access to Fleet Images" ON storage.objects;
+DROP POLICY IF EXISTS "Public Upload to Fleet Images" ON storage.objects;
 CREATE POLICY "Public Access to Fleet Images" ON storage.objects
     FOR SELECT USING (bucket_id = 'fleet-images');
 CREATE POLICY "Public Upload to Fleet Images" ON storage.objects
@@ -280,17 +313,38 @@ ALTER TABLE public.driver_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.parts_exchanges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.maintenance_schedules ENABLE ROW LEVEL SECURITY;
 
--- Allow read/write for all users (service role, anon, auth users)
+-- Allow read/write for all users (service role, anon, auth users) safely
+DROP POLICY IF EXISTS "Full access to vehicles" ON public.vehicles;
 CREATE POLICY "Full access to vehicles" ON public.vehicles FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Full access to drivers" ON public.drivers;
 CREATE POLICY "Full access to drivers" ON public.drivers FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Full access to applications" ON public.applications;
 CREATE POLICY "Full access to applications" ON public.applications FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Full access to sales_records" ON public.sales_records;
 CREATE POLICY "Full access to sales_records" ON public.sales_records FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Full access to ledger_entries" ON public.ledger_entries;
 CREATE POLICY "Full access to ledger_entries" ON public.ledger_entries FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Full access to location_pings" ON public.location_pings;
 CREATE POLICY "Full access to location_pings" ON public.location_pings FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Full access to chat_conversations" ON public.chat_conversations;
 CREATE POLICY "Full access to chat_conversations" ON public.chat_conversations FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Full access to chat_messages" ON public.chat_messages;
 CREATE POLICY "Full access to chat_messages" ON public.chat_messages FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Full access to driver_reports" ON public.driver_reports;
 CREATE POLICY "Full access to driver_reports" ON public.driver_reports FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Full access to parts_exchanges" ON public.parts_exchanges;
 CREATE POLICY "Full access to parts_exchanges" ON public.parts_exchanges FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Full access to maintenance_schedules" ON public.maintenance_schedules;
 CREATE POLICY "Full access to maintenance_schedules" ON public.maintenance_schedules FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================================
