@@ -3,7 +3,15 @@ import fs from 'fs';
 import path from 'path';
 import { externalizeDataUrl } from '@/lib/chat-media-store';
 
-const STORAGE_FILE = path.join(process.cwd(), '.byt-chat-storage.json');
+function getStorageFile(): string {
+  const local = path.join(process.cwd(), '.byt-chat-storage.json');
+  try {
+    fs.accessSync(process.cwd(), fs.constants.W_OK);
+    return local;
+  } catch {
+    return path.join('/tmp', '.byt-chat-storage.json');
+  }
+}
 
 export interface ChatMessage {
   id: string;
@@ -59,6 +67,20 @@ const DEFAULT_MESSAGES: ChatMessage[] = [
 
 let serverMemoryMessages: ChatMessage[] | null = null;
 
+function normalizeDriverId(id: string): string {
+  if (!id) return id;
+  if (/^d\d+$/.test(id)) return id.substring(1);
+  return id;
+}
+
+function normalizeConversationId(convId: string): string {
+  if (!convId) return convId;
+  if (/^c\d+$/.test(convId)) {
+    return `driver_${convId.substring(1)}_admin`;
+  }
+  return convId;
+}
+
 /** Move inline base64 attachments into files; returns true if anything changed */
 function externalizeMessagesMedia(messages: ChatMessage[]): boolean {
   let changed = false;
@@ -78,13 +100,13 @@ function getDiskMessages(): ChatMessage[] {
   if (serverMemoryMessages !== null) {
     return serverMemoryMessages;
   }
+  const filePath = getStorageFile();
   try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const raw = fs.readFileSync(STORAGE_FILE, 'utf-8');
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, 'utf-8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         serverMemoryMessages = parsed;
-        // One-time migration of legacy inline media (shrinks the store file dramatically)
         if (externalizeMessagesMedia(parsed)) {
           saveDiskMessages(parsed);
         }
@@ -101,20 +123,22 @@ function getDiskMessages(): ChatMessage[] {
 
 function saveDiskMessages(messages: ChatMessage[]) {
   serverMemoryMessages = messages;
+  const filePath = getStorageFile();
   try {
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(messages), 'utf-8');
+    fs.writeFileSync(filePath, JSON.stringify(messages), 'utf-8');
   } catch (err) {
-    console.error('Error writing chat storage file:', err);
+    // Non-fatal on serverless (e.g. read-only file systems)
   }
 }
 
 export async function GET() {
-  // Disk/memory store is the source of truth (keeps real recipientId, read receipts, driver-to-driver chats)
-  const diskMessages = getDiskMessages();
   const map = new Map<string, ChatMessage>();
+
+  // 1. Seed with disk/memory messages
+  const diskMessages = getDiskMessages();
   diskMessages.forEach(m => map.set(m.id, m));
 
-  // Supplement with any Supabase rows that are not on disk yet (never overwrite disk entries)
+  // 2. Supplement and refresh with persistent Supabase PostgreSQL cloud messages
   try {
     const { createSupabaseServerClient } = await import('@/lib/supabase');
     const supabase = createSupabaseServerClient();
@@ -125,19 +149,27 @@ export async function GET() {
 
     if (!error && data && data.length > 0) {
       data.forEach(m => {
-        if (map.has(m.id)) return;
+        const convId = normalizeConversationId(m.conversation_id);
+        const senderId = normalizeDriverId(m.sender_id);
+        let recipientId = 'admin';
+        if (m.sender_type === 'admin') {
+          const match = convId.match(/driver_([^_]+)_admin/);
+          recipientId = match ? match[1] : '1';
+        }
+
+        const existing = map.get(m.id);
         map.set(m.id, {
           id: m.id,
-          conversationId: m.conversation_id,
-          senderId: m.sender_id,
-          senderName: m.sender_name || (m.sender_type === 'admin' ? 'Admin Dispatch' : 'Driver'),
+          conversationId: convId,
+          senderId: senderId,
+          senderName: m.sender_name || (m.sender_type === 'admin' ? 'Emma (Admin Dispatch)' : 'Driver'),
           senderRole: m.sender_type as 'driver' | 'admin',
-          recipientId: m.sender_type === 'admin' ? m.conversation_id.replace('driver_', '').replace('_admin', '') : 'admin',
+          recipientId: existing?.recipientId || recipientId,
           content: m.content,
           createdAt: m.created_at,
-          read: m.is_read,
-          mediaUrl: m.media_url || undefined,
-          mediaType: m.media_type as ChatMessage['mediaType'],
+          read: Boolean(m.is_read),
+          mediaUrl: m.media_url || existing?.mediaUrl || undefined,
+          mediaType: (m.media_type as ChatMessage['mediaType']) || existing?.mediaType,
         });
       });
     }
@@ -159,64 +191,88 @@ export async function POST(req: NextRequest) {
     // Index existing messages
     current.forEach(m => map.set(m.id, m));
 
-    // If single message provided
+    const incomingList: ChatMessage[] = [];
     if (body.message && body.message.id) {
-      body.message.mediaUrl = externalizeDataUrl(body.message.id, body.message.mediaUrl);
-      map.set(body.message.id, body.message);
+      incomingList.push(body.message);
     }
-
-    // If batch/updated array provided
     if (Array.isArray(body.messages)) {
       body.messages.forEach((m: ChatMessage) => {
-        if (m && m.id) {
-          m.mediaUrl = externalizeDataUrl(m.id, m.mediaUrl);
-          map.set(m.id, m);
+        if (m && m.id && !incomingList.some(i => i.id === m.id)) {
+          incomingList.push(m);
         }
       });
     }
 
+    incomingList.forEach(m => {
+      m.mediaUrl = externalizeDataUrl(m.id, m.mediaUrl);
+      map.set(m.id, m);
+    });
+
     const merged = Array.from(map.values());
     merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
     saveDiskMessages(merged);
 
-    // Persist new message to Supabase PostgreSQL
+    // Persist new messages to Supabase PostgreSQL cloud database
     try {
       const { createSupabaseServerClient } = await import('@/lib/supabase');
       const supabase = createSupabaseServerClient();
-      const msgToSave: ChatMessage = body.message || (Array.isArray(body.messages) ? body.messages[body.messages.length - 1] : null);
 
-      if (msgToSave && msgToSave.content && /^driver_[^_]+_admin$/.test(msgToSave.conversationId || '')) {
-        // Ensure conversation exists
-        const driverId = msgToSave.conversationId?.replace('driver_', '').replace('_admin', '') || 'd1';
-        await supabase
-          .from('chat_conversations')
-          .upsert({
-            id: msgToSave.conversationId || `driver_${driverId}_admin`,
-            driver_id: driverId,
-            driver_name: msgToSave.senderRole === 'driver' ? msgToSave.senderName : 'Fleet Driver',
-            last_message: msgToSave.content,
-            last_message_at: msgToSave.createdAt || new Date().toISOString(),
+      for (const msg of incomingList) {
+        if (!msg.content && !msg.mediaUrl) continue;
+        const convId = msg.conversationId || `driver_${msg.senderId || '1'}_admin`;
+
+        let driverId = '1';
+        const driverMatch = convId.match(/driver_([^_]+)_admin/);
+        if (driverMatch) {
+          driverId = driverMatch[1];
+        } else if (msg.senderRole === 'driver') {
+          driverId = String(msg.senderId || '1');
+        }
+
+        // Ensure driver exists in drivers table (prevents FK error 23503)
+        try {
+          await supabase.from('drivers').upsert({
+            id: driverId,
+            name: msg.senderRole === 'driver' ? msg.senderName : `Driver ${driverId}`,
+            phone: `024-000-${driverId.padStart(4, '0')}`,
+            status: 'ACTIVE'
           }, { onConflict: 'id' });
+        } catch {}
 
-        await supabase.from('chat_messages').insert({
-          id: msgToSave.id,
-          conversation_id: msgToSave.conversationId || `driver_${driverId}_admin`,
-          sender_id: msgToSave.senderId,
-          sender_name: msgToSave.senderName,
-          sender_type: msgToSave.senderRole,
-          content: msgToSave.content,
-          media_url: msgToSave.mediaUrl || null,
-          media_type: msgToSave.mediaType || null,
-          is_read: Boolean(msgToSave.read),
-          created_at: msgToSave.createdAt || new Date().toISOString(),
-        });
+        // Ensure conversation exists in chat_conversations table
+        try {
+          await supabase.from('chat_conversations').upsert({
+            id: convId,
+            driver_id: driverId,
+            driver_name: msg.senderRole === 'driver' ? msg.senderName : 'Fleet Driver',
+            last_message: msg.content || 'Attachment',
+            last_message_at: msg.createdAt || new Date().toISOString(),
+          }, { onConflict: 'id' });
+        } catch {}
+
+        // Persist message
+        try {
+          await supabase.from('chat_messages').upsert({
+            id: msg.id,
+            conversation_id: convId,
+            sender_id: String(msg.senderId),
+            sender_name: msg.senderName,
+            sender_type: msg.senderRole,
+            content: msg.content || '',
+            media_url: msg.mediaUrl || null,
+            media_type: msg.mediaType || null,
+            is_read: Boolean(msg.read),
+            created_at: msg.createdAt || new Date().toISOString(),
+          }, { onConflict: 'id' });
+        } catch (err) {
+          console.warn('Supabase chat message insert warning:', err);
+        }
       }
     } catch (sbErr) {
       console.warn('Supabase chat message write warning:', sbErr);
     }
 
-    return NextResponse.json({ success: true, messages: merged });
+    return NextResponse.json({ success: true, count: incomingList.length, messages: merged });
   } catch (err) {
     console.error('Error saving chat message:', err);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

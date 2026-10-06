@@ -330,9 +330,48 @@ let isFetchingServer = false;
 
 const retryingIds = new Set<string>();
 
+/** Merges incoming messages into existing without ever discarding locally created messages */
+export function mergeChatMessages(existing: ChatMessage[], incoming: ChatMessage[]): { merged: ChatMessage[]; changed: boolean } {
+  const map = new Map<string, ChatMessage>();
+  (existing || []).forEach(m => {
+    if (m && m.id) map.set(m.id, { ...m });
+  });
+
+  let changed = false;
+  (incoming || []).forEach(inc => {
+    if (!inc || !inc.id) return;
+    const cur = map.get(inc.id);
+    if (!cur) {
+      map.set(inc.id, inc);
+      changed = true;
+    } else {
+      let updated = false;
+      if (inc.read && !cur.read) {
+        cur.read = true;
+        cur.readAt = inc.readAt || cur.readAt;
+        updated = true;
+      }
+      if (inc.mediaUrl && !cur.mediaUrl) {
+        cur.mediaUrl = inc.mediaUrl;
+        updated = true;
+      }
+      if (inc.deliveredAt && !cur.deliveredAt) {
+        cur.deliveredAt = inc.deliveredAt;
+        updated = true;
+      }
+      if (updated) changed = true;
+    }
+  });
+
+  const merged = Array.from(map.values()).sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+  return { merged, changed };
+}
+
 export async function fetchServerMessages(): Promise<ChatMessage[]> {
   if (typeof window === 'undefined' || isFetchingServer) {
-    return cachedChatMessages || DEFAULT_MESSAGES;
+    return cachedChatMessages || getStoredChatMessages();
   }
   isFetchingServer = true;
   try {
@@ -340,17 +379,13 @@ export async function fetchServerMessages(): Promise<ChatMessage[]> {
     if (res.ok) {
       const data = await res.json();
       if (data.success && Array.isArray(data.messages)) {
-        const serverMsgs: ChatMessage[] = data.messages;
-        const serverIds = new Set(serverMsgs.map(m => m.id));
         const local = cachedChatMessages || getStoredChatMessages();
+        const { merged, changed } = mergeChatMessages(local, data.messages);
 
-        // Keep local messages the server doesn't know about yet (in-flight or failed sends)
+        // Keep local unsynced messages retrying in the background
+        const serverIds = new Set(data.messages.map((m: ChatMessage) => m.id));
         const unsynced = local.filter(m => !serverIds.has(m.id));
-        const merged = [...serverMsgs, ...unsynced].sort(
-          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
 
-        // Retry delivering messages that never reached the server (older than 3s so we don't race the original POST)
         unsynced.forEach(m => {
           if (retryingIds.has(m.id) || Date.now() - new Date(m.createdAt).getTime() < 3000) return;
           retryingIds.add(m.id);
@@ -363,10 +398,13 @@ export async function fetchServerMessages(): Promise<ChatMessage[]> {
             .finally(() => setTimeout(() => retryingIds.delete(m.id), 10000));
         });
 
-        cachedChatMessages = merged;
-        try {
-          localStorage.setItem('byt-chat-conversations', JSON.stringify(merged));
-        } catch {}
+        if (changed || !cachedChatMessages) {
+          cachedChatMessages = merged;
+          try {
+            localStorage.setItem('byt-chat-conversations', JSON.stringify(merged));
+          } catch {}
+          window.dispatchEvent(new CustomEvent('byt-chat-updated', { detail: merged }));
+        }
         return merged;
       }
     }
@@ -422,21 +460,19 @@ export function saveStoredChatMessages(messages: ChatMessage[]) {
     const raw = JSON.stringify(messages);
     localStorage.setItem('byt-chat-conversations', raw);
   } catch {
-    // LocalStorage quota may be reached when storing audio blobs locally.
-    // We clean up older audio payloads in localStorage to prevent crashing while keeping memory intact.
+    // LocalStorage quota safety
     try {
       const pruned = messages.map(m => {
         if (m.mediaType === 'audio' && m.mediaUrl && m.mediaUrl.length > 5000) {
-          // Keep recent 5 audio files full, truncate older if needed
           return m;
         }
         return m;
       });
-      localStorage.setItem('byt-chat-conversations', JSON.stringify(pruned.slice(-25)));
+      localStorage.setItem('byt-chat-conversations', JSON.stringify(pruned.slice(-30)));
     } catch {}
   }
 
-  // 1. Same-window custom event (0ms)
+  // 1. Same-window custom event (0ms instantaneous UI render)
   window.dispatchEvent(new CustomEvent('byt-chat-updated', { detail: messages }));
 
   // 2. Cross-window BroadcastChannel dispatch (0ms)
@@ -447,7 +483,7 @@ export function saveStoredChatMessages(messages: ChatMessage[]) {
     } catch {}
   }
 
-  // 3. Server-side persistence (send latest single message to avoid large multi-MB payload over HTTP)
+  // 3. Server-side cloud persistence
   try {
     const lastMsg = messages[messages.length - 1];
     fetch('/api/chat/messages', {
@@ -458,12 +494,17 @@ export function saveStoredChatMessages(messages: ChatMessage[]) {
       .then(async res => {
         if (res.ok) {
           const data = await res.json();
+          // Never overwrite client messages with an incomplete server list! Merge safely!
           if (data.success && Array.isArray(data.messages)) {
-            cachedChatMessages = data.messages;
-            try {
-              localStorage.setItem('byt-chat-conversations', JSON.stringify(data.messages));
-            } catch {}
-            window.dispatchEvent(new CustomEvent('byt-chat-updated', { detail: data.messages }));
+            const current = cachedChatMessages || getStoredChatMessages();
+            const { merged, changed } = mergeChatMessages(current, data.messages);
+            if (changed) {
+              cachedChatMessages = merged;
+              try {
+                localStorage.setItem('byt-chat-conversations', JSON.stringify(merged));
+              } catch {}
+              window.dispatchEvent(new CustomEvent('byt-chat-updated', { detail: merged }));
+            }
           }
         }
       })
@@ -474,7 +515,7 @@ export function saveStoredChatMessages(messages: ChatMessage[]) {
 export function subscribeToChatMessages(callback: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
 
-  // Fetch latest messages from server disk immediately
+  // Fetch latest messages from cloud immediately
   fetchServerMessages().then(serverMsgs => {
     if (serverMsgs && serverMsgs.length > 0) {
       callback();
@@ -533,13 +574,12 @@ export function subscribeToChatMessages(callback: () => void): () => void {
     } catch {}
   }
 
-  // 5. Polling heartbeat: checks local storage every 300ms, and syncs with server every 900ms
-  // This guarantees cross-browser (Chrome <-> Safari) and cross-device persistence
+  // 5. Polling heartbeat: checks local storage every 300ms, and syncs with server every 1200ms
   let tick = 0;
   const intervalId = setInterval(() => {
     checkAndUpdate();
     tick++;
-    if (tick % 3 === 0) {
+    if (tick % 4 === 0) {
       fetchServerMessages().then(serverMsgs => {
         const raw = JSON.stringify(serverMsgs || []);
         if (raw !== lastKnownRaw) {
@@ -550,6 +590,74 @@ export function subscribeToChatMessages(callback: () => void): () => void {
     }
   }, 300);
 
+  // 6. Direct Supabase Realtime subscription for instant cross-device updates
+  let supabaseChannel: { unsubscribe: () => void } | null = null;
+  try {
+    import('@/lib/supabase').then(({ createSupabaseBrowserClient }) => {
+      const supabase = createSupabaseBrowserClient();
+      const channel = supabase
+        .channel('realtime_chat_messages')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'chat_messages' },
+          (payload) => {
+            if (payload.new && (payload.new as { id?: string }).id) {
+              const row = payload.new as {
+                id: string;
+                conversation_id: string;
+                sender_id: string;
+                sender_name?: string;
+                sender_type: 'driver' | 'admin';
+                content: string;
+                media_url?: string;
+                media_type?: ChatMessage['mediaType'];
+                is_read?: boolean;
+                created_at: string;
+              };
+
+              let convId = row.conversation_id;
+              if (/^c\d+$/.test(convId)) {
+                convId = `driver_${convId.substring(1)}_admin`;
+              }
+              const sId = /^d\d+$/.test(row.sender_id) ? row.sender_id.substring(1) : row.sender_id;
+              let rId = 'admin';
+              if (row.sender_type === 'admin') {
+                const match = convId.match(/driver_([^_]+)_admin/);
+                rId = match ? match[1] : '1';
+              }
+
+              const newMsg: ChatMessage = {
+                id: row.id,
+                conversationId: convId,
+                senderId: sId,
+                senderName: row.sender_name || (row.sender_type === 'admin' ? 'Emma (Admin Dispatch)' : 'Driver'),
+                senderRole: row.sender_type,
+                recipientId: rId,
+                content: row.content,
+                createdAt: row.created_at,
+                read: Boolean(row.is_read),
+                mediaUrl: row.media_url || undefined,
+                mediaType: row.media_type || undefined,
+              };
+
+              const current = getStoredChatMessages();
+              const { merged, changed } = mergeChatMessages(current, [newMsg]);
+              if (changed) {
+                cachedChatMessages = merged;
+                try {
+                  localStorage.setItem('byt-chat-conversations', JSON.stringify(merged));
+                } catch {}
+                window.dispatchEvent(new CustomEvent('byt-chat-updated', { detail: merged }));
+                callback();
+              }
+            }
+          }
+        )
+        .subscribe();
+      supabaseChannel = channel;
+    }).catch(() => {});
+  } catch {}
+
   return () => {
     window.removeEventListener('byt-chat-updated', forceUpdate);
     window.removeEventListener('storage', handleStorage);
@@ -557,6 +665,9 @@ export function subscribeToChatMessages(callback: () => void): () => void {
     clearInterval(intervalId);
     if (subChannel) {
       try { subChannel.close(); } catch {}
+    }
+    if (supabaseChannel) {
+      try { supabaseChannel.unsubscribe(); } catch {}
     }
   };
 }

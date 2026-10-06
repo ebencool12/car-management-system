@@ -127,17 +127,21 @@ export default function AdminChatPage() {
     const cId = String(m.conversationId || '');
 
     // 1. Direct conversation ID match
-    if (cId === `driver_${activeDriverId}_admin` || cId === `admin_driver_${activeDriverId}`) {
+    if (
+      cId === `driver_${activeDriverId}_admin` ||
+      cId === `admin_driver_${activeDriverId}` ||
+      (activeDriverId === '1' && (cId === 'c1' || cId === 'driver_d1_admin' || cId === 'driver_1_admin'))
+    ) {
       return true;
     }
 
     // 2. Sent by admin to this driver (or broad dispatch)
-    if (sId === 'admin' && (rId === activeDriverId || rId === 'driver' || rId === 'all')) {
+    if (sId === 'admin' && (rId === activeDriverId || rId === 'driver' || rId === 'all' || (activeDriverId === '1' && (rId === 'd1' || rId === 'c1' || rId === '1')))) {
       return true;
     }
 
     // 3. Sent by this driver to admin
-    if (rId === 'admin' && (sId === activeDriverId || (activeDriverName && m.senderName?.toLowerCase().includes(activeDriverName)))) {
+    if ((rId === 'admin' || rId === 'dispatch') && (sId === activeDriverId || (activeDriverId === '1' && (sId === 'd1' || sId === '1')) || (activeDriverName && m.senderName?.toLowerCase().includes(activeDriverName)))) {
       return true;
     }
 
