@@ -815,41 +815,7 @@ export default function DriverChatPage() {
           </div>
 
           {/* Messages */}
-          <div className="chat-messages-body" style={{ flex: 1, position: 'relative' }}>
-            {/* Persistent Hovering Contact Pill */}
-            {selectedChat && (
-              <div style={{
-                position: 'sticky',
-                top: '8px',
-                zIndex: 20,
-                alignSelf: 'center',
-                margin: '0 auto 10px auto',
-                background: 'rgba(15, 23, 42, 0.85)',
-                color: '#ffffff',
-                padding: '4px 14px',
-                borderRadius: '20px',
-                fontSize: '0.74rem',
-                fontWeight: 600,
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                pointerEvents: 'none',
-              }}>
-                <span style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: isPartnerOnline ? '#10b981' : '#94a3b8'
-                }} />
-                <span>Chatting with {selectedChat.name}</span>
-                {isPartnerTyping && <span style={{ color: '#38bdf8' }}>(typing...)</span>}
-                {isPartnerRecording && <span style={{ color: '#f87171' }}>(recording...)</span>}
-              </div>
-            )}
-
+          <div className="chat-messages-body" style={{ flex: 1 }}>
             {displayedMessages.length === 0 ? (
               <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                 <div style={{ fontSize: '2rem', marginBottom: '6px' }}>💬</div>
