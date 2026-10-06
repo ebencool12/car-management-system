@@ -31,6 +31,7 @@ export default function AdminChatPage() {
     return demoDrivers.filter(d => d.status === 'ACTIVE');
   });
   const [selectedDriverId, setSelectedDriverId] = useState<string>('1'); // Default Kwame Asante
+  const [mobileShowChat, setMobileShowChat] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     return getStoredChatMessages();
   });
@@ -69,6 +70,7 @@ export default function AdminChatPage() {
       const paramDriverId = params.get('driverId') || params.get('driver');
       if (paramDriverId) {
         setSelectedDriverId(String(paramDriverId));
+        setMobileShowChat(true);
       }
     }
     const unsubscribeChat = subscribeToChatMessages(() => {
@@ -384,9 +386,18 @@ export default function AdminChatPage() {
       </div>
 
       {/* Chat Container */}
-      <div className="card" style={{ flex: 1, display: 'flex', overflow: 'hidden', padding: 0 }}>
+      <div className="card admin-chat-card" style={{ flex: 1, display: 'flex', overflow: 'hidden', padding: 0 }}>
         {/* Left: Driver Contacts Directory */}
-        <div style={{ width: 300, borderRight: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', background: 'var(--color-bg-input)' }}>
+        <div
+          className={`admin-chat-directory ${mobileShowChat ? 'hide-mobile' : ''}`}
+          style={{
+            width: 300,
+            borderRight: '1px solid var(--color-border)',
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'var(--color-bg-input)'
+          }}
+        >
           <div style={{ padding: 'var(--space-sm)' }}>
             <div className="search-box" style={{ width: '100%' }}>
               <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -414,7 +425,10 @@ export default function AdminChatPage() {
               return (
                 <div
                   key={d.id}
-                  onClick={() => setSelectedDriverId(String(d.id))}
+                  onClick={() => {
+                    setSelectedDriverId(String(d.id));
+                    setMobileShowChat(true);
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -482,19 +496,39 @@ export default function AdminChatPage() {
 
         {/* Right: Active Chat & Calling Window */}
         {selectedDriver ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--color-bg-surface)' }}>
+          <div
+            className={`admin-chat-conversation ${!mobileShowChat ? 'hide-mobile' : ''}`}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--color-bg-surface)' }}
+          >
             {/* Topbar */}
-            <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                {/* Back button for mobile */}
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-icon show-mobile-inline"
+                  onClick={() => setMobileShowChat(false)}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '1.1rem',
+                    color: 'var(--color-text)',
+                    marginRight: '2px',
+                    minWidth: '32px',
+                    minHeight: '32px',
+                  }}
+                  title="Back to driver list"
+                >
+                  ←
+                </button>
                 {selectedDriver.profilePicture ? (
-                  <img src={selectedDriver.profilePicture} alt={selectedDriver.name} style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover' }} />
+                  <img src={selectedDriver.profilePicture} alt={selectedDriver.name} style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }} />
                 ) : (
-                  <div className="chat-avatar" style={{ width: 42, height: 42, fontSize: '0.9rem' }}>
+                  <div className="chat-avatar" style={{ width: 38, height: 38, fontSize: '0.85rem' }}>
                     {selectedDriver.name.split(' ').map(n => n[0]).join('')}
                   </div>
                 )}
-                <div>
-                  <div className="font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div className="font-bold text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
                     {selectedDriver.name}
                   </div>
                   <div className="text-xs" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>

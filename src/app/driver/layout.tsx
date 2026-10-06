@@ -106,16 +106,20 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
       {/* Mobile Header */}
       <div className="mobile-header" style={{
         transition: 'opacity 0.3s ease, transform 0.3s ease',
+        padding: '0 0.75rem',
+        gap: '8px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flexShrink: 1 }}>
           <img
             src="/byt-logo.png"
             alt="BYT Fleet"
-            style={{ height: 26, maxWidth: 105, objectFit: 'contain' }}
+            style={{ height: 26, maxWidth: 100, objectFit: 'contain' }}
           />
-          <span style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', borderLeft: '1px solid var(--color-border)', paddingLeft: '8px', fontWeight: 600 }}>Driver Portal</span>
+          <span className="hide-mobile-sm" style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', borderLeft: '1px solid var(--color-border)', paddingLeft: '8px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            Driver Portal
+          </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {/* Biometrics Management Button */}
           <button
             type="button"
@@ -129,37 +133,15 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
               color: enrolledBio ? 'var(--byt-sea-dark)' : 'var(--color-text)',
               background: enrolledBio ? 'rgba(8, 145, 178, 0.1)' : 'var(--color-bg-input)',
               border: enrolledBio ? '1px solid var(--byt-sea)' : '1px solid var(--color-border)',
-              padding: '5px 8px',
+              padding: '6px 8px',
               borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
+              minHeight: '34px',
             }}
             title={enrolledBio ? "Biometric login active on this device" : "Enable Face ID / Fingerprint on this device"}
           >
             <span>{enrolledBio?.biometricType === 'face-id' ? '👤' : '🫆'}</span>
-            <span style={{ fontSize: '0.72rem' }}>{enrolledBio ? 'Touch/Face' : 'Biometrics'}</span>
-          </button>
-
-          {/* Optional Focus / Fullscreen Mode Toggle */}
-          <button
-            type="button"
-            onClick={() => setImmersive(prev => !prev)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: immersive ? 'var(--byt-gold)' : 'var(--color-text)',
-              background: 'var(--color-bg-input)',
-              border: '1px solid var(--color-border)',
-              padding: '5px 8px',
-              borderRadius: 'var(--radius-sm)',
-              cursor: 'pointer'
-            }}
-            title={immersive ? "Exit Focus Mode" : "Optional Fullscreen Focus Mode"}
-          >
-            <span>{immersive ? '🗗' : '⛶'}</span>
-            <span>{immersive ? 'Exit' : 'Focus'}</span>
+            <span className="hide-mobile-sm" style={{ fontSize: '0.72rem' }}>{enrolledBio ? 'Touch/Face' : 'Biometrics'}</span>
           </button>
 
           <button
@@ -174,21 +156,31 @@ export default function DriverLayout({ children }: { children: ReactNode }) {
               color: '#dc2626',
               background: 'rgba(239, 68, 68, 0.08)',
               border: '1px solid rgba(239, 68, 68, 0.28)',
-              padding: '5px 9px',
+              padding: '6px 9px',
               borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
+              minHeight: '34px',
               transition: 'all 0.15s ease'
             }}
             title="Logout of Driver Portal and return to login"
           >
-            <span style={{ fontSize: '0.82rem' }}>🚪</span>
-            <span>Logout</span>
+            <span style={{ fontSize: '0.85rem' }}>🚪</span>
+            <span className="hide-mobile-sm">Logout</span>
           </button>
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ padding: immersive ? '0' : '0.85rem 1rem', maxWidth: immersive ? '100%' : 580, margin: '0 auto' }}>
+      <div
+        className="driver-content-wrapper"
+        style={{
+          padding: immersive ? '0' : '0.85rem 1rem',
+          paddingBottom: immersive ? '0' : 'calc(80px + env(safe-area-inset-bottom, 0px))',
+          maxWidth: immersive ? '100%' : 580,
+          margin: '0 auto',
+          boxSizing: 'border-box',
+        }}
+      >
         {children}
       </div>
 

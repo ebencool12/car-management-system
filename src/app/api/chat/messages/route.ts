@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { externalizeDataUrl } from '@/lib/chat-media-store';
 
 const STORAGE_FILE = path.join(process.cwd(), '.byt-chat-storage.json');
 
@@ -58,6 +59,21 @@ const DEFAULT_MESSAGES: ChatMessage[] = [
 
 let serverMemoryMessages: ChatMessage[] | null = null;
 
+/** Move inline base64 attachments into files; returns true if anything changed */
+function externalizeMessagesMedia(messages: ChatMessage[]): boolean {
+  let changed = false;
+  messages.forEach(m => {
+    if (m.mediaUrl && m.mediaUrl.startsWith('data:')) {
+      const url = externalizeDataUrl(m.id, m.mediaUrl);
+      if (url && url !== m.mediaUrl) {
+        m.mediaUrl = url;
+        changed = true;
+      }
+    }
+  });
+  return changed;
+}
+
 function getDiskMessages(): ChatMessage[] {
   if (serverMemoryMessages !== null) {
     return serverMemoryMessages;
@@ -68,6 +84,10 @@ function getDiskMessages(): ChatMessage[] {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         serverMemoryMessages = parsed;
+        // One-time migration of legacy inline media (shrinks the store file dramatically)
+        if (externalizeMessagesMedia(parsed)) {
+          saveDiskMessages(parsed);
+        }
         return parsed;
       }
     }
@@ -82,14 +102,19 @@ function getDiskMessages(): ChatMessage[] {
 function saveDiskMessages(messages: ChatMessage[]) {
   serverMemoryMessages = messages;
   try {
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(messages, null, 2), 'utf-8');
+    fs.writeFileSync(STORAGE_FILE, JSON.stringify(messages), 'utf-8');
   } catch (err) {
     console.error('Error writing chat storage file:', err);
   }
 }
 
 export async function GET() {
-  // 1. Try fetching from Supabase first
+  // Disk/memory store is the source of truth (keeps real recipientId, read receipts, driver-to-driver chats)
+  const diskMessages = getDiskMessages();
+  const map = new Map<string, ChatMessage>();
+  diskMessages.forEach(m => map.set(m.id, m));
+
+  // Supplement with any Supabase rows that are not on disk yet (never overwrite disk entries)
   try {
     const { createSupabaseServerClient } = await import('@/lib/supabase');
     const supabase = createSupabaseServerClient();
@@ -99,29 +124,30 @@ export async function GET() {
       .order('created_at', { ascending: true });
 
     if (!error && data && data.length > 0) {
-      // Map to ChatMessage format
-      const mapped: ChatMessage[] = data.map(m => ({
-        id: m.id,
-        conversationId: m.conversation_id,
-        senderId: m.sender_id,
-        senderName: m.sender_name || (m.sender_type === 'admin' ? 'Admin Dispatch' : 'Driver'),
-        senderRole: m.sender_type as 'driver' | 'admin',
-        recipientId: m.sender_type === 'admin' ? m.conversation_id.replace('driver_', '').replace('_admin', '') : 'admin',
-        content: m.content,
-        createdAt: m.created_at,
-        read: m.is_read,
-        mediaUrl: m.media_url || undefined,
-        mediaType: m.media_type as any,
-      }));
-      return NextResponse.json({ success: true, messages: mapped, source: 'supabase' });
+      data.forEach(m => {
+        if (map.has(m.id)) return;
+        map.set(m.id, {
+          id: m.id,
+          conversationId: m.conversation_id,
+          senderId: m.sender_id,
+          senderName: m.sender_name || (m.sender_type === 'admin' ? 'Admin Dispatch' : 'Driver'),
+          senderRole: m.sender_type as 'driver' | 'admin',
+          recipientId: m.sender_type === 'admin' ? m.conversation_id.replace('driver_', '').replace('_admin', '') : 'admin',
+          content: m.content,
+          createdAt: m.created_at,
+          read: m.is_read,
+          mediaUrl: m.media_url || undefined,
+          mediaType: m.media_type as ChatMessage['mediaType'],
+        });
+      });
     }
   } catch (err) {
     console.warn('Supabase chat messages fetch error:', err);
   }
 
-  // 2. Fallback to disk/memory
-  const messages = getDiskMessages();
-  return NextResponse.json({ success: true, messages, source: 'disk' });
+  const messages = Array.from(map.values());
+  messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  return NextResponse.json({ success: true, messages, source: 'merged' });
 }
 
 export async function POST(req: NextRequest) {
@@ -135,6 +161,7 @@ export async function POST(req: NextRequest) {
 
     // If single message provided
     if (body.message && body.message.id) {
+      body.message.mediaUrl = externalizeDataUrl(body.message.id, body.message.mediaUrl);
       map.set(body.message.id, body.message);
     }
 
@@ -142,6 +169,7 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(body.messages)) {
       body.messages.forEach((m: ChatMessage) => {
         if (m && m.id) {
+          m.mediaUrl = externalizeDataUrl(m.id, m.mediaUrl);
           map.set(m.id, m);
         }
       });
@@ -158,7 +186,7 @@ export async function POST(req: NextRequest) {
       const supabase = createSupabaseServerClient();
       const msgToSave: ChatMessage = body.message || (Array.isArray(body.messages) ? body.messages[body.messages.length - 1] : null);
 
-      if (msgToSave && msgToSave.content) {
+      if (msgToSave && msgToSave.content && /^driver_[^_]+_admin$/.test(msgToSave.conversationId || '')) {
         // Ensure conversation exists
         const driverId = msgToSave.conversationId?.replace('driver_', '').replace('_admin', '') || 'd1';
         await supabase

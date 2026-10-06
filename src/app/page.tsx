@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import BiometricModal from '@/components/BiometricModal';
 import {
   getRegisteredBiometric,
-  registerBiometric,
   EnrolledBiometricUser,
   detectBiometricType,
 } from '@/lib/biometrics';
@@ -30,7 +29,7 @@ export default function LoginPage() {
   const [enrolledBio, setEnrolledBio] = useState<EnrolledBiometricUser | null>(null);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [biometricModalMode, setBiometricModalMode] = useState<'login' | 'enroll' | 'manage'>('login');
-  const [enableBioCheckbox, setEnableBioCheckbox] = useState(true);
+  const [pendingRoute, setPendingRoute] = useState<string | null>(null);
   const [bioType, setBioType] = useState<'face-id' | 'fingerprint' | 'generic'>('fingerprint');
 
   // Mounted state for SSR hydration safety
@@ -79,37 +78,32 @@ export default function LoginPage() {
     }
   };
 
+  const finishLogin = (route: string, userEmail: string) => {
+    const existing = getRegisteredBiometric();
+    if (existing && existing.email === userEmail) {
+      router.push(route);
+      return;
+    }
+    // Offer Face ID / Fingerprint setup; navigate once the user picks or skips
+    setPendingRoute(route);
+    setBiometricModalMode('enroll');
+    setShowBiometricModal(true);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    setTimeout(async () => {
+    setTimeout(() => {
       if (role === 'admin' && email === 'admin@byt.com' && password === 'admin123') {
         localStorage.setItem('byt-role', 'admin');
         localStorage.setItem('byt-user', JSON.stringify({ name: 'Emma', phone: '0208713722', email: 'admin@byt.com', role: 'admin' }));
-
-        if (enableBioCheckbox) {
-          await registerBiometric({
-            role: 'admin',
-            email: 'admin@byt.com',
-            name: 'Emma',
-          });
-        }
-        router.push('/admin');
+        finishLogin('/admin', 'admin@byt.com');
       } else if (role === 'driver') {
         localStorage.setItem('byt-role', 'driver');
         localStorage.setItem('byt-user', JSON.stringify({ id: '1', name: 'Kwame Asante', email, role: 'driver' }));
-
-        if (enableBioCheckbox) {
-          await registerBiometric({
-            role: 'driver',
-            email,
-            name: 'Kwame Asante',
-            driverId: '1',
-          });
-        }
-        router.push('/driver');
+        finishLogin('/driver', email);
       } else {
         setError('Invalid credentials. Please verify your email and password.');
       }
@@ -584,28 +578,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* BIOMETRIC REMEMBER CHECKBOX */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '1.5rem',
-                cursor: 'pointer',
-                userSelect: 'none',
-              }}
-              onClick={() => setEnableBioCheckbox(!enableBioCheckbox)}
-            >
-              <input
-                type="checkbox"
-                checked={enableBioCheckbox}
-                onChange={(e) => setEnableBioCheckbox(e.target.checked)}
-                style={{ width: 15, height: 15, accentColor: '#0891b2', cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: '0.78rem', color: '#475569' }}>
-                Remember device with {isFace ? 'Face ID' : 'Touch ID'}
-              </span>
-            </div>
 
             {/* ERROR BANNER */}
             {error && (
@@ -716,6 +688,11 @@ export default function LoginPage() {
         onClose={() => {
           setShowBiometricModal(false);
           setEnrolledBio(getRegisteredBiometric());
+          if (pendingRoute) {
+            const route = pendingRoute;
+            setPendingRoute(null);
+            router.push(route);
+          }
         }}
         mode={biometricModalMode}
         userToEnroll={{
@@ -726,7 +703,7 @@ export default function LoginPage() {
         }}
         onSuccess={(user) => {
           setEnrolledBio(user);
-          handleBiometricSuccess(user);
+          if (biometricModalMode === 'login') handleBiometricSuccess(user);
         }}
       />
 

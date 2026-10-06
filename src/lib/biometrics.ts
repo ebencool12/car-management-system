@@ -86,7 +86,8 @@ export function detectBiometricType(): 'face-id' | 'fingerprint' | 'generic' {
  * Attempts native WebAuthn PublicKeyCredential.create(), falls back to secure local credential storage.
  */
 export async function registerBiometric(
-  user: { role: 'admin' | 'driver'; email: string; name: string; driverId?: string }
+  user: { role: 'admin' | 'driver'; email: string; name: string; driverId?: string },
+  biometricType?: 'face-id' | 'fingerprint' | 'generic'
 ): Promise<{ success: boolean; error?: string; nativeUsed?: boolean }> {
   if (typeof window === 'undefined') return { success: false, error: 'Window unavailable' };
 
@@ -151,7 +152,7 @@ export async function registerBiometric(
     driverId: user.driverId,
     credentialId,
     enrolledAt: new Date().toISOString(),
-    biometricType: detectBiometricType(),
+    biometricType: biometricType || detectBiometricType(),
   };
 
   try {
@@ -159,6 +160,19 @@ export async function registerBiometric(
     return { success: true, nativeUsed };
   } catch (saveErr) {
     return { success: false, error: 'Could not store biometric credential: ' + String(saveErr) };
+  }
+}
+
+/** Change the preferred biometric method (Face ID / Fingerprint) of the enrolled user */
+export function setBiometricType(type: 'face-id' | 'fingerprint' | 'generic'): EnrolledBiometricUser | null {
+  const current = getRegisteredBiometric();
+  if (!current || typeof window === 'undefined') return null;
+  const updated = { ...current, biometricType: type };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return null;
   }
 }
 

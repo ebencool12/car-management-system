@@ -8,6 +8,7 @@ import {
   authenticateWithBiometrics,
   removeBiometric,
   detectBiometricType,
+  setBiometricType,
 } from '@/lib/biometrics';
 
 interface BiometricModalProps {
@@ -67,8 +68,8 @@ export default function BiometricModal({
 
   useEffect(() => {
     if (isOpen) {
-      setBioType(detectBiometricType());
       const current = getRegisteredBiometric();
+      setBioType(current?.biometricType || detectBiometricType());
       setEnrolledUser(current);
 
       if (mode === 'login') {
@@ -114,7 +115,7 @@ export default function BiometricModal({
     setStep('scanning');
     setStatusMessage(`Registering ${bioType === 'face-id' ? 'Face ID' : 'Fingerprint'}...`);
 
-    const result = await registerBiometric(userToEnroll);
+    const result = await registerBiometric(userToEnroll, bioType);
     if (result.success) {
       setStep('verifying');
       setStatusMessage('Storing local biometric key...');
@@ -141,6 +142,19 @@ export default function BiometricModal({
     setTimeout(() => {
       onClose();
     }, 700);
+  };
+
+  const chooseBioType = (type: 'face-id' | 'fingerprint') => {
+    setBioType(type);
+    // When already enrolled (settings), persist the new preference immediately
+    if (mode !== 'enroll' && enrolledUser) {
+      const updated = setBiometricType(type);
+      if (updated) {
+        setEnrolledUser(updated);
+        setStatusMessage(`Preferred method changed to ${type === 'face-id' ? 'Face ID' : 'Fingerprint'}.`);
+        onSuccess?.(updated);
+      }
+    }
   };
 
   if (!isOpen) return null;
@@ -533,7 +547,7 @@ export default function BiometricModal({
           <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '0.4rem' }}>
             <button
               type="button"
-              onClick={() => setBioType('face-id')}
+              onClick={() => chooseBioType('face-id')}
               style={{
                 background: bioType === 'face-id' ? '#f0f9ff' : 'transparent',
                 border: bioType === 'face-id' ? '1px solid #0891b2' : '1px solid #e2e8f0',
@@ -549,7 +563,7 @@ export default function BiometricModal({
             </button>
             <button
               type="button"
-              onClick={() => setBioType('fingerprint')}
+              onClick={() => chooseBioType('fingerprint')}
               style={{
                 background: bioType === 'fingerprint' ? '#f0f9ff' : 'transparent',
                 border: bioType === 'fingerprint' ? '1px solid #0891b2' : '1px solid #e2e8f0',
@@ -577,7 +591,7 @@ export default function BiometricModal({
               marginTop: '0.2rem',
             }}
           >
-            Cancel & use password
+            {mode === 'enroll' ? 'Skip for now' : 'Cancel & use password'}
           </button>
         </div>
       </div>

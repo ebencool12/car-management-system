@@ -328,6 +328,8 @@ function getSendChannel(): BroadcastChannel | null {
 let cachedChatMessages: ChatMessage[] | null = null;
 let isFetchingServer = false;
 
+const retryingIds = new Set<string>();
+
 export async function fetchServerMessages(): Promise<ChatMessage[]> {
   if (typeof window === 'undefined' || isFetchingServer) {
     return cachedChatMessages || DEFAULT_MESSAGES;
@@ -338,11 +340,34 @@ export async function fetchServerMessages(): Promise<ChatMessage[]> {
     if (res.ok) {
       const data = await res.json();
       if (data.success && Array.isArray(data.messages)) {
-        cachedChatMessages = data.messages;
+        const serverMsgs: ChatMessage[] = data.messages;
+        const serverIds = new Set(serverMsgs.map(m => m.id));
+        const local = cachedChatMessages || getStoredChatMessages();
+
+        // Keep local messages the server doesn't know about yet (in-flight or failed sends)
+        const unsynced = local.filter(m => !serverIds.has(m.id));
+        const merged = [...serverMsgs, ...unsynced].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+
+        // Retry delivering messages that never reached the server (older than 3s so we don't race the original POST)
+        unsynced.forEach(m => {
+          if (retryingIds.has(m.id) || Date.now() - new Date(m.createdAt).getTime() < 3000) return;
+          retryingIds.add(m.id);
+          fetch('/api/chat/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: m }),
+          })
+            .catch(() => {})
+            .finally(() => setTimeout(() => retryingIds.delete(m.id), 10000));
+        });
+
+        cachedChatMessages = merged;
         try {
-          localStorage.setItem('byt-chat-conversations', JSON.stringify(data.messages));
+          localStorage.setItem('byt-chat-conversations', JSON.stringify(merged));
         } catch {}
-        return data.messages;
+        return merged;
       }
     }
   } catch {} finally {
@@ -429,7 +454,20 @@ export function saveStoredChatMessages(messages: ChatMessage[]) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(lastMsg ? { message: lastMsg } : { messages }),
-    }).catch(err => console.error('Server sync error:', err));
+    })
+      .then(async res => {
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.messages)) {
+            cachedChatMessages = data.messages;
+            try {
+              localStorage.setItem('byt-chat-conversations', JSON.stringify(data.messages));
+            } catch {}
+            window.dispatchEvent(new CustomEvent('byt-chat-updated', { detail: data.messages }));
+          }
+        }
+      })
+      .catch(err => console.error('Server sync error:', err));
   } catch {}
 }
 

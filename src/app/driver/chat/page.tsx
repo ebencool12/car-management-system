@@ -739,7 +739,7 @@ export default function DriverChatPage() {
         </div>
       ) : (
         /* Chat View */
-        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 20px)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 126px - env(safe-area-inset-bottom, 0px))', position: 'relative' }}>
           {/* Chat Header */}
           <div style={{
             padding: 'var(--space-md) var(--space-lg)',

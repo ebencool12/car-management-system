@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local chat persistence & media
+.byt-chat-storage.json
+.byt-chat-media/
+
+# local server runtime
+server.log
+.app.pid

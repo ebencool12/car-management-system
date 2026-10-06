@@ -308,9 +308,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Center/Right Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {/* Active Fleet Indicator */}
-          <div className="status-badge-active">
+          <div className="status-badge-active hide-mobile">
             <span className="pulse-dot" />
             <span className="status-text">Fleet Active • 2 Online</span>
           </div>
@@ -453,18 +453,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <span className="hide-mobile">{enrolledBio ? 'Touch/Face ID' : 'Biometrics'}</span>
           </button>
 
-          {/* Optional Fullscreen / Focus Mode Toggle */}
+          {/* Optional Fullscreen / Focus Mode Toggle (Desktop only) */}
           <button
             type="button"
-            className="btn btn-ghost btn-icon"
+            className="btn btn-ghost btn-icon hide-mobile"
             onClick={() => setAdminFocusMode(prev => !prev)}
             style={{
               background: adminFocusMode ? 'rgba(212, 168, 67, 0.15)' : 'var(--color-bg-card)',
               border: adminFocusMode ? '1.5px solid var(--byt-gold)' : '1px solid var(--color-border)',
               color: adminFocusMode ? 'var(--byt-gold)' : 'var(--color-text)',
               borderRadius: 'var(--radius-md)',
-              width: 38,
-              height: 38,
+              width: 34,
+              height: 34,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -472,27 +472,30 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             }}
             title={adminFocusMode ? "Exit Focus Mode (Esc)" : "Optional Fullscreen Focus Mode"}
           >
-            <span style={{ fontSize: '1.05rem' }}>{adminFocusMode ? '🗗' : '⛶'}</span>
+            <span style={{ fontSize: '1rem' }}>{adminFocusMode ? '🗗' : '⛶'}</span>
           </button>
 
           {/* Admin Profile Pill */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'var(--color-bg-card)',
-            border: '1px solid var(--color-border)',
-            padding: '3px 10px 3px 6px',
-            borderRadius: 'var(--radius-full)'
-          }}>
+          <div
+            className="hide-mobile"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              padding: '3px 10px 3px 6px',
+              borderRadius: 'var(--radius-full)'
+            }}
+          >
             <div style={{
-              width: 28,
-              height: 28,
+              width: 26,
+              height: 26,
               borderRadius: '50%',
               background: 'linear-gradient(135deg, var(--byt-gold), var(--byt-gold-dark))',
               color: '#0a1628',
               fontWeight: 800,
-              fontSize: '0.75rem',
+              fontSize: '0.72rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -500,8 +503,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               EM
             </div>
             <div style={{ lineHeight: 1.2 }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 600 }}>Emma</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--byt-gold)' }}>Admin • 0208713722</div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>Emma</div>
+              <div style={{ fontSize: '0.62rem', color: 'var(--byt-gold)' }}>Admin</div>
             </div>
           </div>
 
@@ -527,7 +530,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
-            <span>Sign Out</span>
+            <span className="hide-mobile">Sign Out</span>
           </button>
         </div>
       </header>
@@ -1018,15 +1021,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             bottom: 0;
             left: 0;
             right: 0;
-            height: 56px;
-            background: rgba(255, 255, 255, 0.96);
+            height: calc(56px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            background: rgba(255, 255, 255, 0.98);
             backdrop-filter: blur(16px);
             border-top: 1px solid var(--color-border);
             display: flex;
             align-items: center;
             justify-content: space-around;
             z-index: 50;
-            padding: 0 4px;
+            padding-left: 4px;
+            padding-right: 4px;
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.04);
           }
 
@@ -1044,7 +1049,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             background: none;
             border: none;
             cursor: pointer;
-            padding: 4px 8px;
+            padding: 4px 6px;
             border-radius: var(--radius-sm);
             transition: color 0.15s ease;
           }
@@ -1062,7 +1067,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         @media (max-width: 1024px) {
           .admin-topbar {
             margin-left: 0 !important;
-            padding: 0 10px;
+            padding: 0 10px !important;
+            height: 48px !important;
           }
 
           .sidebar {
@@ -1076,7 +1082,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
           .main-content {
             margin-left: 0 !important;
-            padding: var(--space-md) var(--space-md) 74px !important;
+            padding: var(--space-md) var(--space-md) calc(80px + env(safe-area-inset-bottom, 0px)) !important;
           }
         }
       `}</style>
