@@ -750,14 +750,20 @@ export default function DriverChatPage() {
       ) : (
         /* Chat View */
         <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 126px - env(safe-area-inset-bottom, 0px))', position: 'relative' }}>
-          {/* Chat Header */}
+          {/* Persistent Hovering Chat Header */}
           <div style={{
-            padding: 'var(--space-md) var(--space-lg)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 35,
+            padding: '10px 14px',
             borderBottom: '1px solid var(--color-border)',
             display: 'flex',
             alignItems: 'center',
             gap: 'var(--space-md)',
-            background: '#ffffff',
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)',
           }}>
             <button className="btn btn-ghost btn-icon" onClick={() => setSelectedUser(null)} style={{ padding: '0.3rem' }}>
               ← 
@@ -809,7 +815,41 @@ export default function DriverChatPage() {
           </div>
 
           {/* Messages */}
-          <div className="chat-messages-body" style={{ flex: 1 }}>
+          <div className="chat-messages-body" style={{ flex: 1, position: 'relative' }}>
+            {/* Persistent Hovering Contact Pill */}
+            {selectedChat && (
+              <div style={{
+                position: 'sticky',
+                top: '8px',
+                zIndex: 20,
+                alignSelf: 'center',
+                margin: '0 auto 10px auto',
+                background: 'rgba(15, 23, 42, 0.85)',
+                color: '#ffffff',
+                padding: '4px 14px',
+                borderRadius: '20px',
+                fontSize: '0.74rem',
+                fontWeight: 600,
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                pointerEvents: 'none',
+              }}>
+                <span style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: isPartnerOnline ? '#10b981' : '#94a3b8'
+                }} />
+                <span>Chatting with {selectedChat.name}</span>
+                {isPartnerTyping && <span style={{ color: '#38bdf8' }}>(typing...)</span>}
+                {isPartnerRecording && <span style={{ color: '#f87171' }}>(recording...)</span>}
+              </div>
+            )}
+
             {displayedMessages.length === 0 ? (
               <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                 <div style={{ fontSize: '2rem', marginBottom: '6px' }}>💬</div>
@@ -821,6 +861,30 @@ export default function DriverChatPage() {
                 const isMe = msg.senderId !== 'admin' && (String(msg.senderId) === String(currentUserId) || msg.senderName === currentUserName);
                 return (
                   <div key={msg.id} className={`message-bubble ${isMe ? 'sent' : 'received'}`}>
+                    {/* Hovering / Persistent Sender Name */}
+                    {!isMe ? (
+                      <div style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        color: 'var(--byt-sea)',
+                        marginBottom: '3px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <span>{msg.senderName || selectedChat?.name || 'Emma (Admin Dispatch)'}</span>
+                      </div>
+                    ) : (
+                      <div style={{
+                        fontSize: '0.70rem',
+                        fontWeight: 600,
+                        color: 'rgba(255, 255, 255, 0.82)',
+                        marginBottom: '2px',
+                        textAlign: 'right'
+                      }}>
+                        <span>You ({currentUserName})</span>
+                      </div>
+                    )}
                     {/* File / Media Attachment Render */}
                     {msg.mediaUrl && (
                       <div style={{ marginBottom: msg.content && msg.content !== '🎙️ Voice note' ? '8px' : 0 }}>
