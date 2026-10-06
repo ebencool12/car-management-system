@@ -221,6 +221,49 @@ export default function DriverChatPage() {
 
   const selectedChat = chatUsersList.find(u => u.id === selectedUser) || chatUsersList[0];
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showScrollNav, setShowScrollNav] = useState(false);
+  const [unreadBelowCount, setUnreadBelowCount] = useState(0);
+  const prevMessagesCountRef = useRef(0);
+  const prevSelectedUserRef = useRef(selectedUser);
+
+  const handleMessagesScroll = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const atBottom = distanceFromBottom < 80;
+    setIsAtBottom(atBottom);
+
+    if (atBottom) {
+      setUnreadBelowCount(0);
+      setShowScrollNav(false);
+    } else {
+      // Swiping or scrolling away from bottom reveals the navigation buttons
+      if (distanceFromBottom > 120 || scrollTop > 200) {
+        setShowScrollNav(true);
+      }
+    }
+  };
+
+  const scrollToWayUp = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+      setIsAtBottom(true);
+      setUnreadBelowCount(0);
+      setShowScrollNav(false);
+    }
+  };
 
   const activeConversationId = selectedUser === 'admin'
     ? `driver_${currentUserId}_admin`
@@ -321,8 +364,27 @@ export default function DriverChatPage() {
   const isPartnerOnline = partnerPresence?.online ?? (selectedChat?.online ?? false);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [displayedMessages, audioMessages, isPartnerTyping, isPartnerRecording]);
+    const isConvChange = prevSelectedUserRef.current !== selectedUser;
+    prevSelectedUserRef.current = selectedUser;
+
+    const count = displayedMessages.length + audioMessages.length;
+    const prevCount = prevMessagesCountRef.current;
+    prevMessagesCountRef.current = count;
+
+    if (isConvChange) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      setIsAtBottom(true);
+      setShowScrollNav(false);
+      setUnreadBelowCount(0);
+    } else if (isAtBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      if (count > prevCount) {
+        setUnreadBelowCount(prev => prev + (count - prevCount));
+        setShowScrollNav(true);
+      }
+    }
+  }, [displayedMessages, audioMessages, isPartnerTyping, isPartnerRecording, selectedUser, isAtBottom]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -358,6 +420,11 @@ export default function DriverChatPage() {
 
     setMessage('');
     setPendingFile(null);
+    setIsAtBottom(true);
+    setShowScrollNav(false);
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 40);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -815,7 +882,13 @@ export default function DriverChatPage() {
           </div>
 
           {/* Messages */}
-          <div className="chat-messages-body" style={{ flex: 1 }}>
+          <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div
+              ref={messagesContainerRef}
+              onScroll={handleMessagesScroll}
+              className="chat-messages-body"
+              style={{ flex: 1 }}
+            >
             {displayedMessages.length === 0 ? (
               <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                 <div style={{ fontSize: '2rem', marginBottom: '6px' }}>💬</div>
@@ -981,6 +1054,72 @@ export default function DriverChatPage() {
             )}
 
             <div ref={messagesEndRef} />
+            </div>
+
+            {/* Tiny Floating Scroll Direction Selector */}
+            {showScrollNav && (
+              <div style={{
+                position: 'absolute',
+                bottom: 12,
+                right: 16,
+                zIndex: 40,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                background: 'rgba(10, 22, 40, 0.94)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                borderRadius: 9999,
+                padding: '4px 8px',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+                animation: 'fadeIn 0.2s ease-out'
+              }}>
+                <button
+                  type="button"
+                  onClick={scrollToWayUp}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: 'none',
+                    borderRadius: 9999,
+                    color: '#f8fafc',
+                    padding: '3px 9px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3
+                  }}
+                  title="Scroll all the way up"
+                >
+                  <span>⬆</span>
+                  <span>Way Up</span>
+                </button>
+                <span style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: '0.7rem' }}>•</span>
+                <button
+                  type="button"
+                  onClick={scrollToBottom}
+                  style={{
+                    background: unreadBelowCount > 0 ? '#10b981' : 'var(--byt-sea)',
+                    border: 'none',
+                    borderRadius: 9999,
+                    color: '#ffffff',
+                    padding: '3px 10px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3
+                  }}
+                  title="Scroll all the way to bottom"
+                >
+                  <span>⬇</span>
+                  <span>{unreadBelowCount > 0 ? `Bottom (${unreadBelowCount} new)` : 'Bottom'}</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Recording Indicator with Pause / Resume */}

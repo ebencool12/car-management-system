@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { demoDrivers, demoVehicles, getStatusBadgeClass, getBalanceLabel, Driver, Vehicle, getStoredDrivers, saveStoredDrivers, saveStoredVehicles, getStoredVehicles } from '@/lib/demo-data';
+import { demoDrivers, demoVehicles, getStatusBadgeClass, getBalanceLabel, Driver, Vehicle, getStoredDrivers, saveStoredDrivers, saveStoredVehicles, getStoredVehicles, updateDriverPassword } from '@/lib/demo-data';
 import {
   getDriverPhoneTelemetry,
   DriverPhoneTelemetry,
@@ -142,6 +142,13 @@ export default function DriversPage() {
   const [editNewVehModel, setEditNewVehModel] = useState('');
   const [editNewVehYear, setEditNewVehYear] = useState('2023');
 
+  // Password Management state
+  const [passwordModalDriver, setPasswordModalDriver] = useState<Driver | null>(null);
+  const [driverNewPassword, setDriverNewPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [copiedPassword, setCopiedPassword] = useState(false);
+
   // Load saved drivers & vehicles from localStorage on mount & listen to updates
   useEffect(() => {
     setDrivers(getStoredDrivers());
@@ -181,6 +188,42 @@ export default function DriversPage() {
     setEditNewVehMake('');
     setEditNewVehModel('');
     setEditNewVehYear('2023');
+  };
+
+  const handleOpenPasswordModal = (driver: Driver, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setPasswordModalDriver(driver);
+    setDriverNewPassword('');
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setCopiedPassword(false);
+  };
+
+  const handleSaveDriverPassword = () => {
+    if (!passwordModalDriver) return;
+    const pwToSave = driverNewPassword.trim() || 'driver123';
+    if (pwToSave.length < 4) {
+      alert('Password must be at least 4 characters long.');
+      return;
+    }
+    updateDriverPassword(passwordModalDriver.id, pwToSave);
+    const updated = drivers.map(d => d.id === passwordModalDriver.id ? { ...d, password: pwToSave } : d);
+    setDrivers(updated);
+    if (selectedProfileDriver && selectedProfileDriver.id === passwordModalDriver.id) {
+      setSelectedProfileDriver({ ...selectedProfileDriver, password: pwToSave });
+    }
+    setToastMessage(`🔑 Password for ${passwordModalDriver.name} updated to "${pwToSave}" successfully!`);
+    setPasswordModalDriver(null);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleGenerateRandomPassword = () => {
+    const chars = '23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+    let gen = '';
+    for (let i = 0; i < 6; i++) {
+      gen += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setDriverNewPassword(`byt-${gen}`);
   };
 
   const handleSaveEditedDriver = (e: React.FormEvent) => {
@@ -1105,6 +1148,14 @@ export default function DriversPage() {
                       </Link>
                       <button
                         className="btn btn-ghost btn-sm"
+                        title={`View / Change Password for ${driver.name}`}
+                        onClick={(e) => handleOpenPasswordModal(driver, e)}
+                        style={{ color: '#d97706', fontSize: '0.85rem' }}
+                      >
+                        🔑
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
                         title={`Edit ${driver.name}'s Details`}
                         onClick={(e) => handleOpenEditDriver(driver, e)}
                         style={{ color: '#0284c7' }}
@@ -1204,6 +1255,16 @@ export default function DriversPage() {
                   <span>💬</span>
                   <span>Chat with Driver</span>
                 </Link>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleOpenPasswordModal(selectedProfileDriver)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', padding: '4px 10px', color: '#d97706', borderColor: '#d97706' }}
+                  title="View or change this driver's login password"
+                >
+                  <span>🔑</span>
+                  <span>Password</span>
+                </button>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
@@ -2739,7 +2800,219 @@ export default function DriversPage() {
         </div>
       )}
 
-      {/* Add Driver Modal */}
+      {/* Driver Password Management Modal */}
+      {passwordModalDriver && (
+        <div className="modal-overlay" onClick={() => setPasswordModalDriver(null)}>
+          <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '10px',
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.2rem'
+                }}>
+                  🔑
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>Manage Driver Password</h3>
+                  <p className="text-xs text-muted" style={{ margin: 0 }}>
+                    Help driver recover or change their login credentials
+                  </p>
+                </div>
+              </div>
+              <button type="button" className="btn btn-ghost btn-icon" onClick={() => setPasswordModalDriver(null)}>✕</button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Driver Summary Card */}
+              <div style={{
+                background: 'var(--color-surface-hover, rgba(255, 255, 255, 0.03))',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <div style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: '50%',
+                  background: 'var(--byt-sea)',
+                  color: '#fff',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1rem',
+                  flexShrink: 0
+                }}>
+                  {passwordModalDriver.name.charAt(0)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                    {passwordModalDriver.name}
+                  </div>
+                  <div className="font-mono text-xs text-muted" style={{ display: 'flex', gap: '10px', marginTop: '2px' }}>
+                    <span>📞 {passwordModalDriver.phone}</span>
+                    {passwordModalDriver.vehicle && (
+                      <span>🚗 {passwordModalDriver.vehicle.plateNumber}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Password Peek */}
+              <div style={{
+                background: 'rgba(234, 179, 8, 0.08)',
+                border: '1px solid rgba(234, 179, 8, 0.25)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 14px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#eab308' }}>
+                    Current Active Password
+                  </label>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    {passwordModalDriver.password ? 'Custom set' : 'Default pin'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="font-mono" style={{
+                    flex: 1,
+                    background: 'var(--color-bg)',
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    letterSpacing: showCurrentPassword ? '0.05em' : '0.25em',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--color-border)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {showCurrentPassword ? (passwordModalDriver.password || 'driver123') : '••••••••'}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    title={showCurrentPassword ? 'Hide password' : 'Show password'}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    {showCurrentPassword ? '🙈 Hide' : '👁️ View'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(passwordModalDriver.password || 'driver123');
+                      setCopiedPassword(true);
+                      setTimeout(() => setCopiedPassword(false), 2000);
+                    }}
+                    title="Copy to clipboard"
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    {copiedPassword ? '✓ Copied' : '📋 Copy'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Set New Password Field */}
+              <div className="form-group" style={{ margin: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ margin: 0, fontWeight: 700, fontSize: '0.82rem' }}>
+                    New Password / PIN *
+                  </label>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={handleGenerateRandomPassword}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--byt-sea)',
+                        cursor: 'pointer',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: 0,
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      🎲 Suggest PIN
+                    </button>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>•</span>
+                    <button
+                      type="button"
+                      onClick={() => setDriverNewPassword('driver123')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--byt-sea)',
+                        cursor: 'pointer',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: 0,
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      Reset to driver123
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    className="form-input font-mono"
+                    placeholder="Enter new password (min 4 chars)"
+                    value={driverNewPassword}
+                    onChange={e => setDriverNewPassword(e.target.value)}
+                    style={{ flex: 1, fontSize: '0.95rem' }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    title={showNewPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showNewPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
+                <p className="text-xs text-muted" style={{ marginTop: '6px', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                  💡 The driver will use their phone number (<strong className="font-mono text-primary">{passwordModalDriver.phone}</strong>) and this password to log in.
+                </p>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '14px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setPasswordModalDriver(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSaveDriverPassword}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
+              >
+                <span>💾</span>
+                <span>Save New Password</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal" style={{ maxWidth: 540 }} onClick={e => e.stopPropagation()}>

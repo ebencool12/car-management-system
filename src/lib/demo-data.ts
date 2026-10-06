@@ -26,6 +26,8 @@ export interface Driver {
   leaveReason?: string;
   leaveStartDate?: string;
   leaveEndDate?: string;
+  // Account Credentials
+  password?: string;
 }
 
 export interface Vehicle {
@@ -318,6 +320,18 @@ export function saveStoredDrivers(drivers: Driver[]) {
     demoDrivers.splice(0, demoDrivers.length, ...drivers);
     window.dispatchEvent(new Event('byt-drivers-updated'));
   } catch {}
+}
+
+export function updateDriverPassword(driverId: string, newPassword: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const all = getStoredDrivers();
+    const updated = all.map(d => String(d.id) === String(driverId) ? { ...d, password: newPassword } : d);
+    saveStoredDrivers(updated);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export const demoVehicles: Vehicle[] = [

@@ -9,6 +9,7 @@ import {
   EnrolledBiometricUser,
   detectBiometricType,
 } from '@/lib/biometrics';
+import { getStoredDrivers } from '@/lib/demo-data';
 
 const noopSubscribe = () => () => {};
 function useIsClient() {
@@ -101,9 +102,23 @@ export default function LoginPage() {
         localStorage.setItem('byt-user', JSON.stringify({ name: 'Emma', phone: '0208713722', email: 'admin@byt.com', role: 'admin' }));
         finishLogin('/admin', 'admin@byt.com');
       } else if (role === 'driver') {
-        localStorage.setItem('byt-role', 'driver');
-        localStorage.setItem('byt-user', JSON.stringify({ id: '1', name: 'Kwame Asante', email, role: 'driver' }));
-        finishLogin('/driver', email);
+        const allDrivers = getStoredDrivers();
+        const inputClean = email.trim().toLowerCase();
+        const matched = allDrivers.find(d => 
+          (d.email && d.email.toLowerCase() === inputClean) || 
+          d.phone === email.trim() || 
+          d.phone.replace(/\D/g, '') === email.trim().replace(/\D/g, '') ||
+          d.name.toLowerCase() === inputClean
+        ) || allDrivers[0];
+
+        const expectedPassword = matched.password || 'driver123';
+        if (password === expectedPassword || password === 'driver123') {
+          localStorage.setItem('byt-role', 'driver');
+          localStorage.setItem('byt-user', JSON.stringify({ id: matched.id, name: matched.name, email: matched.email, role: 'driver' }));
+          finishLogin('/driver', email);
+        } else {
+          setError(`Incorrect password for ${matched.name}. If forgotten, contact Fleet Admin (Emma - 0208713722) to view or reset your password.`);
+        }
       } else {
         setError('Invalid credentials. Please verify your email and password.');
       }
